@@ -35,6 +35,11 @@
       "statusCode": 404
     },
     {
+      "//": "Must precede the /* catch-all. Without it the catch-all also matches the AAD callback, so the callback itself returns 401, the 401 override bounces back to /.auth/login/aad, and sign-in loops forever.",
+      "route": "/.auth/*",
+      "allowedRoles": ["anonymous", "authenticated"]
+    },
+    {
       "route": "/*",
       "allowedRoles": ["authenticated"]
     }
@@ -42,7 +47,7 @@
 
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "/*.{css,js,png,svg,ico,json}"]
+    "exclude": ["/api/*", "/.auth/*", "/*.{css,js,png,svg,ico,json}"]
   },
 
   "responseOverrides": {
@@ -50,9 +55,11 @@
       "statusCode": 302,
       "redirect": "/.auth/login/aad"
     },
-    "403": {
-      "rewrite": "/index.html"
-    }
+    "//": [
+      "403 deliberately has no rewrite. Rewriting to /index.html would send an",
+      "authenticated-but-unassigned user to a page that itself requires a role,",
+      "producing a second redirect loop. The default 403 page is correct here."
+    ]
   },
 
   "globalHeaders": {
