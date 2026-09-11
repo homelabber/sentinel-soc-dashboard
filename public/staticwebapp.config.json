@@ -13,7 +13,7 @@
     "identityProviders": {
       "azureActiveDirectory": {
         "registration": {
-          "openIdIssuer": "https://login.microsoftonline.com/__TENANT_ID__/v2.0",
+          "openIdIssuer": "https://login.microsoftonline.com/bceb1f6d-25c4-4748-aba6-8d90bb0193bf/v2.0",
           "clientIdSettingName": "AZURE_CLIENT_ID",
           "clientSecretSettingName": "AZURE_CLIENT_SECRET"
         }
@@ -41,7 +41,7 @@
   ],
 
   "navigationFallback": {
-    "rewrite": "/dashboard.html",
+    "rewrite": "/index.html",
     "exclude": ["/api/*", "/*.{css,js,png,svg,ico,json}"]
   },
 
@@ -51,7 +51,7 @@
       "redirect": "/.auth/login/aad"
     },
     "403": {
-      "rewrite": "/dashboard.html"
+      "rewrite": "/index.html"
     }
   },
 
