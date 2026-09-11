@@ -1,0 +1,10 @@
+// Daily incident volume by severity — last 30 days
+// Backs the "Incident Volume Trend" chart.
+SecurityIncident
+| where TimeGenerated > ago(30d)
+| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'
+| summarize arg_max(TimeGenerated, *) by IncidentNumber
+| where CreatedTime > ago(30d)
+| summarize Count = count()
+    by Day = format_datetime(startofday(CreatedTime), 'yyyy-MM-dd'), Severity
+| order by Day asc

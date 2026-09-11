@@ -1,0 +1,17 @@
+{
+  "name": "soc-dashboard-api",
+  "version": "1.0.0",
+  "description": "Read-only data API for the Sentinel SOC dashboard. Runs on Azure App Service and authenticates to Azure with a managed identity, so no secret ever reaches the browser.",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.4.1",
+    "@azure/storage-blob": "^12.24.0",
+    "express": "^4.21.0"
+  }
+}

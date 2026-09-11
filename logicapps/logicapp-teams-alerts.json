@@ -1,0 +1,152 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "teamsWebhookUrl": {
+        "type": "securestring",
+        "metadata": {
+          "description": "Incoming webhook URL for the target Teams channel. Create it with the Teams 'Workflows' app (Post to a channel when a webhook request is received). The legacy Office 365 connector is retired."
+        }
+      },
+      "workspaceId": {
+        "type": "string",
+        "metadata": {
+          "description": "Log Analytics workspace GUID (customerId)."
+        }
+      }
+    },
+    "triggers": {
+      "Every_5_minutes": {
+        "type": "Recurrence",
+        "recurrence": {
+          "frequency": "Minute",
+          "interval": 5
+        }
+      }
+    },
+    "actions": {
+      "Query_Alerts": {
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "https://api.loganalytics.io/v1/workspaces/@{parameters('workspaceId')}/query",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "query": "let AlertWindow = 5m;\nlet WindowHours = 5.0 / 60.0;\nlet cur = SecurityIncident\n| where TimeGenerated > ago(30d)\n| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'\n| summarize arg_max(TimeGenerated, *) by IncidentNumber;\nlet newInc = cur\n| where CreatedTime > ago(AlertWindow)\n| where Severity in ('Critical','High')\n| where Status != 'Closed'\n| extend AlertType = 'NewIncident', HoursOpen = datetime_diff('minute', now(), CreatedTime) / 60.0;\nlet breached = cur\n| where Status != 'Closed'\n| where Severity in ('Critical','High')\n| extend SLAHours = iff(Severity == 'Critical', 2.0, 8.0)\n| extend HoursOpen = datetime_diff('minute', now(), CreatedTime) / 60.0\n| where HoursOpen > SLAHours and HoursOpen <= SLAHours + WindowHours\n| extend AlertType = 'SLABreach'\n| project-away SLAHours;\nunion newInc, breached\n| project AlertType, IncidentNumber, Title, Severity, Status, CreatedTime, HoursOpen = round(HoursOpen, 2), Owner = tostring(Owner.userPrincipalName), IncidentUrl\n| order by AlertType asc, IncidentNumber desc\n| summarize Alerts = make_list(pack_all())"
+          },
+          "authentication": {
+            "type": "ManagedServiceIdentity",
+            "audience": "https://api.loganalytics.io"
+          }
+        }
+      },
+      "Parse_Alerts": {
+        "runAfter": {
+          "Query_Alerts": [ "Succeeded" ]
+        },
+        "type": "Compose",
+        "description": "make_list returns the array as a JSON string, so it must be parsed. When no incidents match, Log Analytics returns zero rows, hence the coalesce to an empty array.",
+        "inputs": "@if(empty(body('Query_Alerts')?['tables'][0]['rows']), json('[]'), json(body('Query_Alerts')?['tables'][0]['rows'][0][0]))"
+      },
+      "If_Alerts_Exist": {
+        "runAfter": {
+          "Parse_Alerts": [ "Succeeded" ]
+        },
+        "type": "If",
+        "expression": {
+          "greater": [ "@length(outputs('Parse_Alerts'))", 0 ]
+        },
+        "actions": {
+          "For_each_alert": {
+            "type": "Foreach",
+            "foreach": "@outputs('Parse_Alerts')",
+            "runtimeConfiguration": {
+              "concurrency": { "repetitions": 1 }
+            },
+            "actions": {
+              "Post_to_Teams": {
+                "type": "Http",
+                "inputs": {
+                  "method": "POST",
+                  "uri": "@parameters('teamsWebhookUrl')",
+                  "headers": {
+                    "Content-Type": "application/json"
+                  },
+                  "body": {
+                    "type": "message",
+                    "attachments": [
+                      {
+                        "contentType": "application/vnd.microsoft.card.adaptive",
+                        "contentUrl": null,
+                        "content": {
+                          "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                          "type": "AdaptiveCard",
+                          "version": "1.4",
+                          "msteams": { "width": "Full" },
+                          "body": [
+                            {
+                              "type": "Container",
+                              "style": "@{if(equals(items('For_each_alert')?['Severity'], 'Critical'), 'attention', 'warning')}",
+                              "bleed": true,
+                              "items": [
+                                {
+                                  "type": "TextBlock",
+                                  "size": "Medium",
+                                  "weight": "Bolder",
+                                  "wrap": true,
+                                  "text": "@{if(equals(items('For_each_alert')?['AlertType'], 'SLABreach'), '⏰ SLA BREACH', '🚨 NEW INCIDENT')} · @{items('For_each_alert')?['Severity']}"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "TextBlock",
+                              "size": "Large",
+                              "weight": "Bolder",
+                              "wrap": true,
+                              "text": "#@{items('For_each_alert')?['IncidentNumber']} — @{items('For_each_alert')?['Title']}"
+                            },
+                            {
+                              "type": "FactSet",
+                              "facts": [
+                                { "title": "Severity", "value": "@{items('For_each_alert')?['Severity']}" },
+                                { "title": "Status", "value": "@{items('For_each_alert')?['Status']}" },
+                                { "title": "Owner", "value": "@{if(empty(items('For_each_alert')?['Owner']), 'Unassigned', items('For_each_alert')?['Owner'])}" },
+                                { "title": "Open for", "value": "@{items('For_each_alert')?['HoursOpen']} hours" },
+                                { "title": "Created", "value": "@{formatDateTime(items('For_each_alert')?['CreatedTime'], 'yyyy-MM-dd HH:mm')} UTC" }
+                              ]
+                            }
+                          ],
+                          "actions": [
+                            {
+                              "type": "Action.OpenUrl",
+                              "title": "View in Microsoft Sentinel",
+                              "url": "@{items('For_each_alert')?['IncidentUrl']}"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "actions": {}
+        }
+      }
+    }
+  },
+  "parameters": {
+    "teamsWebhookUrl": {
+      "value": "YOUR_TEAMS_WEBHOOK_URL"
+    },
+    "workspaceId": {
+      "value": "YOUR_WORKSPACE_ID"
+    }
+  }
+}

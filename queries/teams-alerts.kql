@@ -1,0 +1,41 @@
+// Teams alert feed — new Critical/High incidents, plus SLA breaches at the
+// moment they cross the threshold.
+//
+// Why the narrow breach window: an incident that is past SLA stays past SLA
+// forever, so alerting on "HoursOpen > SLAHours" would re-notify every single
+// run. Instead we alert only when the incident crossed the line during the
+// last run interval, which gives exactly-once notification without needing to
+// persist any "already alerted" state.
+//
+// AlertWindow must match the Logic App recurrence interval.
+//
+// NOTE: 'latest' is a reserved token in KQL and cannot be used as a let name.
+let AlertWindow = 5m;
+let WindowHours = 5.0 / 60.0;
+let cur = SecurityIncident
+| where TimeGenerated > ago(30d)
+| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'
+| summarize arg_max(TimeGenerated, *) by IncidentNumber;
+let newInc = cur
+| where CreatedTime > ago(AlertWindow)
+| where Severity in ('Critical','High')
+| where Status != 'Closed'
+| extend AlertType = 'NewIncident',
+         HoursOpen = datetime_diff('minute', now(), CreatedTime) / 60.0;
+let breached = cur
+| where Status != 'Closed'
+| where Severity in ('Critical','High')
+| extend SLAHours  = iff(Severity == 'Critical', 2.0, 8.0)
+| extend HoursOpen = datetime_diff('minute', now(), CreatedTime) / 60.0
+| where HoursOpen > SLAHours and HoursOpen <= SLAHours + WindowHours
+| extend AlertType = 'SLABreach'
+| project-away SLAHours;
+union newInc, breached
+| project AlertType, IncidentNumber, Title, Severity, Status,
+          CreatedTime, HoursOpen = round(HoursOpen, 2),
+          Owner = tostring(Owner.userPrincipalName),
+          IncidentUrl
+| order by AlertType asc, IncidentNumber desc
+// Collapse to a single row containing an array of objects. Logic Apps can then
+// iterate real properties instead of positional row indexes.
+| summarize Alerts = make_list(pack_all())

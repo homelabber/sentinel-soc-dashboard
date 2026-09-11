@@ -1,0 +1,23 @@
+// Open incident backlog at the end of each day — last 30 days
+// Backs the "Open Backlog Trend" chart.
+// An incident counts toward a day if it was created on/before that day and was
+// either still open, or closed after that day ended.
+let inc = SecurityIncident
+    | where TimeGenerated > ago(30d)
+    | where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'
+    | summarize arg_max(TimeGenerated, *) by IncidentNumber
+    | project CreatedTime, ClosedTime, Status, Severity
+    | extend k = 1;
+range Offset from 0 to 29 step 1
+| extend Day = startofday(now()) - (29 - Offset) * 1d
+| extend k = 1
+| join kind=inner inc on k
+| extend EndOfDay = Day + 1d
+| where CreatedTime < EndOfDay
+| where Status != 'Closed' or isnull(ClosedTime) or ClosedTime >= EndOfDay
+| summarize
+    OpenCount = count(),
+    Critical  = countif(Severity == 'Critical'),
+    High      = countif(Severity == 'High')
+    by Day = format_datetime(Day, 'yyyy-MM-dd')
+| order by Day asc

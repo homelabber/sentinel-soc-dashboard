@@ -1,0 +1,17 @@
+// Daily SLA compliance % — last 30 days
+// SLA: Critical must be resolved within 2h, High within 8h.
+// NOTE: thresholds here must stay in sync with SLA_HOURS in dashboard.html.
+SecurityIncident
+| where TimeGenerated > ago(30d)
+| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'
+| summarize arg_max(TimeGenerated, *) by IncidentNumber
+| where CreatedTime > ago(30d)
+| where Severity in ('Critical', 'High')
+| extend SLAHours = iff(Severity == 'Critical', 2.0, 8.0)
+| extend EndTime  = iff(Status == 'Closed' and isnotempty(ClosedTime), ClosedTime, now())
+| extend HoursOpen = datetime_diff('minute', EndTime, CreatedTime) / 60.0
+| extend Breached  = HoursOpen > SLAHours
+| summarize Total = count(), Breaches = countif(Breached)
+    by Day = format_datetime(startofday(CreatedTime), 'yyyy-MM-dd')
+| extend CompliancePct = round(100.0 * (Total - Breaches) / Total, 1)
+| order by Day asc

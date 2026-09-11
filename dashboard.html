@@ -82,6 +82,33 @@ nav{
   overflow:hidden;
 }
 
+/* ── TRENDS VIEW ── */
+.trends-main{
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr 1fr;
+}
+.view-btn{cursor:pointer;background:none;}
+.view-btn.active{
+  border-color:var(--cyan);
+  color:var(--cyan);
+  background:rgba(0,212,255,0.08);
+}
+.chart-body{display:flex;flex-direction:column;min-height:0;}
+.chart{width:100%;flex:1;min-height:0;overflow:visible;}
+.chart text{font-family:var(--mono);font-size:8px;fill:var(--dim);}
+.chart .grid-line{stroke:var(--border);stroke-width:1;}
+.chart .axis-line{stroke:var(--b2);stroke-width:1;}
+.legend{
+  display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  font-family:var(--mono);font-size:8px;color:var(--text);
+  padding-top:6px;flex-shrink:0;
+}
+.legend i{display:inline-block;width:8px;height:8px;margin-right:4px;vertical-align:middle;}
+.chart-empty{
+  display:flex;align-items:center;justify-content:center;height:100%;
+  font-family:var(--mono);font-size:10px;color:var(--dim);text-align:center;
+}
+
 /* tiles row spans full width */
 .tiles-row{
   grid-column:1 / -1;
@@ -219,10 +246,15 @@ tbody td{padding:5px 8px;font-size:10px;color:var(--bright);white-space:nowrap;}
   <div class="nav-left">
     <span style="font-family:var(--ui);font-size:13px;font-weight:700;color:var(--bright);letter-spacing:2px;">SOC<span style="color:#d45c00">:</span></span>
     <div class="nav-pill" style="border-color:rgba(212,92,0,.5);color:#d45c00">Microsoft Sentinel</div>
+    <div style="display:flex;gap:4px;margin-left:10px" id="viewSwitch">
+      <button class="nav-pill view-btn active" data-view="live">◉ Live</button>
+      <button class="nav-pill view-btn" data-view="trends">◈ Trends</button>
+    </div>
     </div>
   <div class="nav-right">
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
     <div class="upd-time" id="updTime">—</div>
+    <div class="upd-time" id="userBadge" style="display:none"></div>
     <button id="btnRefresh">↺ Refresh</button>
   </div>
 </nav>
@@ -231,13 +263,13 @@ tbody td{padding:5px 8px;font-size:10px;color:var(--bright);white-space:nowrap;}
 
 <div class="ticker">
   <div class="ticker-dot"></div>
-  <span style="font-family:var(--mono);font-size:9px;color:rgba(255,45,85,.6);letter-spacing:1px;flex-shrink:0;margin-right:12px">NCSC</span>
+  <span id="tickerLabel" style="font-family:var(--mono);font-size:9px;color:rgba(255,45,85,.6);letter-spacing:1px;flex-shrink:0;margin-right:12px">CISA</span>
   <div style="overflow:hidden;flex:1;position:relative">
-    <div class="ticker-scroll" id="tickerText">Nieuws laden…</div>
+    <div class="ticker-scroll" id="tickerText">Loading threat feed…</div>
   </div>
 </div>
 
-<div class="main">
+<div class="main" id="viewLive">
 
   <!-- ── ROW 1: TILES ── -->
   <div class="tiles-row">
@@ -348,25 +380,107 @@ tbody td{padding:5px 8px;font-size:10px;color:var(--bright);white-space:nowrap;}
   </div>
 
 </div><!-- /main -->
+
+<!-- ══════════════ TRENDS VIEW ══════════════ -->
+<div class="main trends-main" id="viewTrends" style="display:none">
+
+  <div class="card">
+    <div class="card-hd">
+      Incident Volume — 30 Days
+      <span class="card-hd-count" id="tvTotal"></span>
+    </div>
+    <div class="card-body chart-body">
+      <svg id="chartVolume" class="chart"></svg>
+      <div class="legend" id="tvLegend"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      Mean Time To Resolve — 30 Days
+      <span class="card-hd-count" id="tmTotal"></span>
+    </div>
+    <div class="card-body chart-body">
+      <svg id="chartMttr" class="chart"></svg>
+      <div class="legend">
+        <span><i style="background:var(--cyan)"></i>Average</span>
+        <span><i style="background:var(--purple)"></i>Median</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      SLA Compliance — 30 Days
+      <span class="card-hd-count" id="tsTotal"></span>
+    </div>
+    <div class="card-body chart-body">
+      <svg id="chartSla" class="chart"></svg>
+      <div class="legend">
+        <span><i style="background:var(--green)"></i>Compliant</span>
+        <span><i style="background:var(--red)"></i>Breached</span>
+        <span style="color:var(--dim)">Critical &le;<span id="slaCritLbl"></span>h · High &le;<span id="slaHighLbl"></span>h</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      Open Backlog — 30 Days
+      <span class="card-hd-count" id="tbTotal"></span>
+    </div>
+    <div class="card-body chart-body">
+      <svg id="chartBacklog" class="chart"></svg>
+      <div class="legend">
+        <span><i style="background:var(--cyan)"></i>All open</span>
+        <span><i style="background:var(--red)"></i>Critical + High</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /trends -->
 </div><!-- /root -->
 
 <script>
 // ═══════════════════════════════════════════════════
-//  CONFIG — update these values before deploying
+//  CONFIG
 // ═══════════════════════════════════════════════════
-const BLOB = 'https://YOUR_STORAGE_ACCOUNT.blob.core.windows.net/YOUR_CONTAINER_NAME';
+// Data is served through the Static Web App's /api proxy, which reads the
+// private blob container using a managed identity. No storage keys or SAS
+// tokens ever reach the browser, and the container stays private.
+//
+// To point at a public blob container instead (the upstream behaviour), set
+// DATA_BASE to 'https://<account>.blob.core.windows.net/<container>'.
+const DATA_BASE  = '/api/data';
 const REFRESH_MS = 5 * 60 * 1000;
+
+// SLA thresholds in hours, keyed by severity. An incident is breached when it
+// has been open longer than its threshold. Severities not listed are never
+// flagged. Keep in sync with queries/trend-sla-compliance-30d.kql and the
+// Teams alerting Logic App.
+const SLA_HOURS = { Critical: 2, High: 8 };
+
+// Locale for date/time rendering. Was hardcoded to nl-NL upstream.
+const LOCALE = 'en-US';
+
+// Threat-intel ticker. Set FEED_ENABLED=false to disable the ticker entirely.
+// NOTE: the RSS feed is fetched through the third-party rss2json.com proxy
+// because the source feeds do not send CORS headers.
+const FEED_ENABLED = true;
+const FEED_URL     = 'https://www.cisa.gov/cybersecurity-advisories/all.xml';
+const FEED_LABEL   = 'CISA';
 
 let allIncidents = [];
 let allOpenIncidents = [];
 let allAgeDist = [];
 let allMetrics = {};
+let allTrends = {};
 
 const $ = id => document.getElementById(id);
 
 function fmt(dt) {
   if (!dt) return '—';
-  return new Date(dt).toLocaleString('nl-NL',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  return new Date(dt).toLocaleString(LOCALE,{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
 }
 function fmtH(h) {
   const n = parseFloat(h);
@@ -389,8 +503,9 @@ function isSLABreached(inc) {
   const stat = inc.status||inc.Status||'';
   const sev  = inc.severity||inc.Severity||'';
   if (stat==='Closed') return false;
-  const h = hoursOpen(inc);
-  return (sev==='High'&&h>2)||(sev==='Medium'&&h>8);
+  const limit = SLA_HOURS[sev];
+  if (limit === undefined) return false;
+  return hoursOpen(inc) > limit;
 }
 function laToObj(data) {
   if (Array.isArray(data)) return data;
@@ -404,10 +519,18 @@ function laToObj(data) {
     return o;
   });
 }
+// Log Analytics results reach us in a few shapes depending on how the Logic App
+// composed them: the full response ({tables:[...]}), the bare tables array
+// ([{columns,rows}]), a single table object ({columns,rows}), or an already
+// flattened array of objects. Accept all of them.
 function parseMF(field) {
-  if(!field) return [];
-  if(Array.isArray(field)&&field[0]?.columns) return laToObj(field[0]);
-  return Array.isArray(field)?field:[];
+  if (!field) return [];
+  if (Array.isArray(field)) {
+    if (field[0]?.columns) return laToObj(field[0]);
+    return field;
+  }
+  if (field.columns || field.tables) return laToObj(field);
+  return [];
 }
 
 async function fetchAll() {
@@ -425,28 +548,30 @@ async function fetchAll() {
     }
   }
 
-  const [iData, mData, oData, aData] = await Promise.all([
-    safeFetch(`${BLOB}/incidents.json`),
-    safeFetch(`${BLOB}/metrics.json`),
-    safeFetch(`${BLOB}/open-incidents.json`),
-    safeFetch(`${BLOB}/age-distribution.json`)
+  const [iData, mData, oData, aData, tData] = await Promise.all([
+    safeFetch(`${DATA_BASE}/incidents.json`),
+    safeFetch(`${DATA_BASE}/metrics.json`),
+    safeFetch(`${DATA_BASE}/open-incidents.json`),
+    safeFetch(`${DATA_BASE}/age-distribution.json`),
+    safeFetch(`${DATA_BASE}/trends.json`)
   ]);
 
   if (iData !== null) allIncidents     = laToObj(iData);
   if (mData !== null) allMetrics       = mData;
   if (oData !== null) allOpenIncidents = laToObj(oData);
   if (aData !== null) allAgeDist       = laToObj(aData);
+  if (tData !== null) allTrends        = tData;
 
   // Only show error banner if ALL core fetches failed
   if (iData === null && oData === null) {
-    $('errBanner').textContent = '⚠ Cannot reach Blob Storage — Check CORS settings. ' + errors[0];
+    $('errBanner').textContent = '⚠ Cannot reach data API — ' + (errors[0] || 'unknown error');
     $('errBanner').style.display = 'block';
   } else {
     $('errBanner').style.display = 'none';
   }
 
   render();
-  $('updTime').textContent = new Date().toLocaleTimeString('nl-NL');
+  $('updTime').textContent = new Date().toLocaleTimeString(LOCALE);
 }
 
 function render() {
@@ -457,6 +582,7 @@ function render() {
   renderAnalysts();
   renderAgeDist();
   renderIncFeed();
+  renderTrends();
 }
 
 function renderTiles() {
@@ -770,10 +896,295 @@ function renderIncFeed() {
 }
 
 $('btnRefresh').addEventListener('click', fetchAll);
-async function fetchNCSCFeed() {
+
+// ═══════════════════════════════════════════════════
+//  TREND CHARTS
+// ═══════════════════════════════════════════════════
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const PAD = { t: 10, r: 10, b: 20, l: 30 };
+
+function el(tag, attrs, text) {
+  const n = document.createElementNS(SVG_NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+// Rows arrive from Log Analytics as strings; coerce defensively.
+function num(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+function shortDay(d) { return (d || '').substring(5); }  // 'yyyy-MM-dd' -> 'MM-dd'
+
+// Prepare an SVG for drawing: size it to its container, clear it, draw the
+// Y grid + axis, and return the plot geometry plus scale helpers.
+function initChart(svg, maxY, yTicks) {
+  const box = svg.getBoundingClientRect();
+  const W = Math.max(box.width, 200);
+  const H = Math.max(box.height, 120);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = '';
+
+  const pw = W - PAD.l - PAD.r;
+  const ph = H - PAD.t - PAD.b;
+  const top = maxY > 0 ? maxY : 1;
+
+  const y = v => PAD.t + ph - (v / top) * ph;
+
+  const ticks = yTicks || 4;
+  for (let i = 0; i <= ticks; i++) {
+    const val = (top / ticks) * i;
+    const yy  = y(val);
+    svg.appendChild(el('line', { x1: PAD.l, y1: yy, x2: PAD.l + pw, y2: yy, class: 'grid-line' }));
+    svg.appendChild(el('text', { x: PAD.l - 4, y: yy + 3, 'text-anchor': 'end' },
+      top >= 10 ? Math.round(val) : val.toFixed(1)));
+  }
+  svg.appendChild(el('line',
+    { x1: PAD.l, y1: PAD.t + ph, x2: PAD.l + pw, y2: PAD.t + ph, class: 'axis-line' }));
+
+  return { svg, W, H, pw, ph, top, y };
+}
+
+// Label roughly every Nth category so the X axis never overlaps itself.
+function drawXLabels(c, days, bandW, x0) {
+  const step = Math.max(1, Math.ceil(days.length / 8));
+  days.forEach((d, i) => {
+    if (i % step !== 0 && i !== days.length - 1) return;
+    c.svg.appendChild(el('text',
+      { x: x0(i) + bandW / 2, y: c.H - PAD.b + 12, 'text-anchor': 'middle' }, shortDay(d)));
+  });
+}
+
+function emptyChart(id, msg) {
+  const svg = $(id);
+  svg.innerHTML = '';
+  const box = svg.getBoundingClientRect();
+  const W = Math.max(box.width, 200), H = Math.max(box.height, 120);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const t = el('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', fill: 'var(--dim)' }, msg);
+  t.setAttribute('font-size', '10');
+  svg.appendChild(t);
+}
+
+const SEV_ORDER = ['Critical','High','Medium','Low','Informational'];
+
+// Stacked bars: incidents per day, split by severity.
+function renderTrendVolume() {
+  const rows = parseMF(allTrends.incidentVolume);
+  if (!rows.length) { emptyChart('chartVolume', 'No incident data in range'); $('tvLegend').innerHTML=''; return; }
+
+  const byDay = {};
+  const seen  = new Set();
+  rows.forEach(r => {
+    const d = r.day || r.Day, s = r.severity || r.Severity || '?';
+    if (!d) return;
+    (byDay[d] = byDay[d] || {})[s] = num(r.count || r.Count);
+    seen.add(s);
+  });
+
+  const days = Object.keys(byDay).sort();
+  const sevs = SEV_ORDER.filter(s => seen.has(s));
+  const totals = days.map(d => sevs.reduce((a, s) => a + (byDay[d][s] || 0), 0));
+  const maxY = Math.max(...totals, 1);
+
+  const c = initChart($('chartVolume'), maxY);
+  const bandW = c.pw / days.length;
+  const barW  = Math.max(1, bandW * 0.7);
+  const x0 = i => PAD.l + i * bandW;
+
+  days.forEach((d, i) => {
+    let acc = 0;
+    sevs.forEach(s => {
+      const v = byDay[d][s] || 0;
+      if (!v) return;
+      const h = (v / c.top) * c.ph;
+      acc += h;
+      const rect = el('rect', {
+        x: x0(i) + (bandW - barW) / 2,
+        y: PAD.t + c.ph - acc,
+        width: barW, height: Math.max(1, h),
+        fill: sevColor(s), opacity: 0.85
+      });
+      rect.appendChild(el('title', {}, `${d} · ${s}: ${v}`));
+      c.svg.appendChild(rect);
+    });
+  });
+
+  drawXLabels(c, days, bandW, x0);
+  $('tvTotal').textContent = totals.reduce((a, b) => a + b, 0) + ' total';
+  $('tvLegend').innerHTML = sevs
+    .map(s => `<span><i style="background:${sevColor(s)}"></i>${s}</span>`).join('');
+}
+
+// Dual line chart: average vs median hours-to-close.
+function renderTrendMttr() {
+  const rows = parseMF(allTrends.mttr);
+  if (!rows.length) { emptyChart('chartMttr', 'No closed incidents in range'); return; }
+
+  const days = rows.map(r => r.day || r.Day);
+  const avg  = rows.map(r => num(r.avgHours || r.AvgHours));
+  const med  = rows.map(r => num(r.medianHours || r.MedianHours));
+  const maxY = Math.max(...avg, ...med, 1);
+
+  const c = initChart($('chartMttr'), maxY);
+  // Single-point series would produce a zero-width band, so clamp the divisor.
+  const bandW = c.pw / Math.max(days.length, 1);
+  const px = i => PAD.l + bandW * i + bandW / 2;
+
+  [[avg, 'var(--cyan)'], [med, 'var(--purple)']].forEach(([series, color]) => {
+    const pts = series.map((v, i) => `${px(i)},${c.y(v)}`).join(' ');
+    if (series.length > 1) {
+      c.svg.appendChild(el('polyline',
+        { points: pts, fill: 'none', stroke: color, 'stroke-width': 2 }));
+    }
+    series.forEach((v, i) => {
+      const dot = el('circle', { cx: px(i), cy: c.y(v), r: 3, fill: color });
+      dot.appendChild(el('title', {}, `${days[i]}: ${v}h`));
+      c.svg.appendChild(dot);
+    });
+  });
+
+  drawXLabels(c, days, bandW, i => PAD.l + bandW * i);
+  const overall = avg.length ? (avg.reduce((a, b) => a + b, 0) / avg.length) : 0;
+  $('tmTotal').textContent = fmtH(overall) + ' avg';
+}
+
+// 100% stacked bars: SLA compliant vs breached, per day.
+function renderTrendSla() {
+  $('slaCritLbl').textContent = SLA_HOURS.Critical;
+  $('slaHighLbl').textContent = SLA_HOURS.High;
+
+  const rows = parseMF(allTrends.slaCompliance);
+  if (!rows.length) { emptyChart('chartSla', 'No Critical/High incidents in range'); return; }
+
+  const c = initChart($('chartSla'), 100);
+  const days  = rows.map(r => r.day || r.Day);
+  const bandW = c.pw / days.length;
+  const barW  = Math.max(1, bandW * 0.7);
+  const x0 = i => PAD.l + i * bandW;
+
+  let totBreach = 0, totAll = 0;
+  rows.forEach((r, i) => {
+    const total = num(r.total || r.Total);
+    const brch  = num(r.breaches || r.Breaches);
+    if (!total) return;
+    totBreach += brch; totAll += total;
+
+    const pctBreach = (brch / total) * 100;
+    const hBreach   = (pctBreach / 100) * c.ph;
+    const x = x0(i) + (bandW - barW) / 2;
+
+    const ok = el('rect', {
+      x, y: PAD.t, width: barW, height: Math.max(0, c.ph - hBreach),
+      fill: 'var(--green)', opacity: 0.75
+    });
+    ok.appendChild(el('title', {}, `${days[i]}: ${(100 - pctBreach).toFixed(0)}% compliant (${total - brch}/${total})`));
+    c.svg.appendChild(ok);
+
+    if (brch > 0) {
+      const bad = el('rect', {
+        x, y: PAD.t + c.ph - hBreach, width: barW, height: Math.max(1, hBreach),
+        fill: 'var(--red)', opacity: 0.85
+      });
+      bad.appendChild(el('title', {}, `${days[i]}: ${brch} breached of ${total}`));
+      c.svg.appendChild(bad);
+    }
+  });
+
+  drawXLabels(c, days, bandW, x0);
+  const pct = totAll ? (100 * (totAll - totBreach) / totAll) : 0;
+  $('tsTotal').textContent = pct.toFixed(0) + '% compliant';
+  $('tsTotal').style.color = pct >= 95 ? 'var(--green)' : pct >= 80 ? 'var(--yellow)' : 'var(--red)';
+}
+
+// Area chart: total open backlog, with Critical+High overlaid.
+function renderTrendBacklog() {
+  const rows = parseMF(allTrends.openBacklog);
+  if (!rows.length) { emptyChart('chartBacklog', 'No backlog data in range'); return; }
+
+  const days = rows.map(r => r.day || r.Day);
+  const open = rows.map(r => num(r.openCount || r.OpenCount));
+  const crit = rows.map(r => num(r.critical || r.Critical) + num(r.high || r.High));
+  const maxY = Math.max(...open, 1);
+
+  const c = initChart($('chartBacklog'), maxY);
+  const bandW = c.pw / Math.max(days.length, 1);
+  const px = i => PAD.l + bandW * i + bandW / 2;
+
+  const area = open.map((v, i) => `${px(i)},${c.y(v)}`).join(' ');
+  if (open.length > 1) {
+    c.svg.appendChild(el('polygon', {
+      points: `${px(0)},${PAD.t + c.ph} ${area} ${px(open.length - 1)},${PAD.t + c.ph}`,
+      fill: 'var(--cyan)', opacity: 0.15
+    }));
+    c.svg.appendChild(el('polyline',
+      { points: area, fill: 'none', stroke: 'var(--cyan)', 'stroke-width': 2 }));
+    c.svg.appendChild(el('polyline', {
+      points: crit.map((v, i) => `${px(i)},${c.y(v)}`).join(' '),
+      fill: 'none', stroke: 'var(--red)', 'stroke-width': 2
+    }));
+  }
+
+  open.forEach((v, i) => {
+    const dot = el('circle', { cx: px(i), cy: c.y(v), r: 2, fill: 'var(--cyan)' });
+    dot.appendChild(el('title', {}, `${days[i]}: ${v} open (${crit[i]} crit/high)`));
+    c.svg.appendChild(dot);
+  });
+
+  drawXLabels(c, days, bandW, i => PAD.l + bandW * i);
+  const last = open[open.length - 1] || 0;
+  const prev = open[0] || 0;
+  const delta = last - prev;
+  $('tbTotal').textContent = `${last} open (${delta >= 0 ? '+' : ''}${delta} vs 30d ago)`;
+  $('tbTotal').style.color = delta > 0 ? 'var(--red)' : delta < 0 ? 'var(--green)' : 'var(--dim)';
+}
+
+function renderTrends() {
+  if (currentView !== 'trends') return;  // charts need layout to measure
+  renderTrendVolume();
+  renderTrendMttr();
+  renderTrendSla();
+  renderTrendBacklog();
+}
+
+// ── View switching ──
+let currentView = 'live';
+function setView(v) {
+  currentView = v;
+  $('viewLive').style.display   = v === 'live'   ? 'grid' : 'none';
+  $('viewTrends').style.display = v === 'trends' ? 'grid' : 'none';
+  document.querySelectorAll('.view-btn')
+    .forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  if (v === 'trends') requestAnimationFrame(renderTrends);
+}
+document.querySelectorAll('.view-btn')
+  .forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+
+// Re-measure charts when the window resizes (wall displays get resized once,
+// then never again — but this keeps dev/browser use sane).
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(renderTrends, 200);
+});
+
+// ── Signed-in user badge (Static Web Apps auth) ──
+async function loadUser() {
   try {
-    // Use rss2json proxy to avoid CORS
-    const url = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://feeds.ncsc.nl/nieuws.rss');
+    const r = await fetch('/.auth/me');
+    if (!r.ok) return;
+    const j = await r.json();
+    const p = (j.clientPrincipal) || (j[0] && j[0].user_id ? j[0] : null);
+    if (p && p.userDetails) {
+      $('userBadge').textContent = p.userDetails;
+      $('userBadge').style.display = '';
+    }
+  } catch(e) { /* running outside SWA — no auth context */ }
+}
+
+async function fetchThreatFeed() {
+  if (!FEED_ENABLED) return;
+  try {
+    const url = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(FEED_URL);
     const r = await fetch(url);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
@@ -784,7 +1195,7 @@ async function fetchNCSCFeed() {
     const text = items
       .slice(0, 20)
       .map(i => {
-        const date = new Date(i.pubDate).toLocaleDateString('nl-NL', {day:'2-digit',month:'short'});
+        const date = new Date(i.pubDate).toLocaleDateString(LOCALE, {day:'2-digit',month:'short'});
         return `${i.title} &nbsp;<span style="color:rgba(255,45,85,.5)">${date}</span>`;
       })
       .join(' &nbsp;&nbsp;·&nbsp;&nbsp; ');
@@ -792,15 +1203,17 @@ async function fetchNCSCFeed() {
     // Duplicate for seamless loop
     $('tickerText').innerHTML = text + ' &nbsp;&nbsp;·&nbsp;&nbsp; ' + text;
   } catch(e) {
-    $('tickerText').textContent = 'NCSC feed tijdelijk niet beschikbaar · ' + e.message;
+    $('tickerText').textContent = FEED_LABEL + ' feed temporarily unavailable · ' + e.message;
   }
 }
 
+$('tickerLabel').textContent = FEED_LABEL;
+loadUser();
 fetchAll();
-fetchNCSCFeed();
+fetchThreatFeed();
 initFilters();
 setInterval(fetchAll, REFRESH_MS);
-setInterval(fetchNCSCFeed, 30 * 60 * 1000); // refresh feed every 30 min
+setInterval(fetchThreatFeed, 30 * 60 * 1000); // refresh feed every 30 min
 </script>
 </body>
 </html>

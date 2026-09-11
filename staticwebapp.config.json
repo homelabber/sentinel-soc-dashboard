@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json.schemastore.org/staticwebapp.config.json",
+
+  "//": [
+    "Replace __TENANT_ID__ with your Microsoft Entra tenant GUID before deploying.",
+    "infra/deploy.ps1 does this substitution automatically.",
+    "Using a tenant-specific issuer (rather than /common) is what restricts",
+    "sign-in to your organisation only. With the built-in Microsoft provider,",
+    "ANY Microsoft account - including personal ones - could authenticate."
+  ],
+
+  "auth": {
+    "identityProviders": {
+      "azureActiveDirectory": {
+        "registration": {
+          "openIdIssuer": "https://login.microsoftonline.com/__TENANT_ID__/v2.0",
+          "clientIdSettingName": "AZURE_CLIENT_ID",
+          "clientSecretSettingName": "AZURE_CLIENT_SECRET"
+        }
+      }
+    }
+  },
+
+  "routes": [
+    {
+      "route": "/api/data/*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/.auth/login/github",
+      "statusCode": 404
+    },
+    {
+      "route": "/.auth/login/twitter",
+      "statusCode": 404
+    },
+    {
+      "route": "/*",
+      "allowedRoles": ["authenticated"]
+    }
+  ],
+
+  "navigationFallback": {
+    "rewrite": "/dashboard.html",
+    "exclude": ["/api/*", "/*.{css,js,png,svg,ico,json}"]
+  },
+
+  "responseOverrides": {
+    "401": {
+      "statusCode": 302,
+      "redirect": "/.auth/login/aad"
+    },
+    "403": {
+      "rewrite": "/dashboard.html"
+    }
+  },
+
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Referrer-Policy": "strict-origin-when-cross-origin"
+  },
+
+  "mimeTypes": {
+    ".json": "application/json",
+    ".html": "text/html"
+  }
+}

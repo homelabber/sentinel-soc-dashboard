@@ -1,0 +1,16 @@
+// Daily MTTR (mean time to resolve) — last 30 days
+// Backs the "MTTR Trend" chart. Median included because MTTR is skewed by outliers.
+SecurityIncident
+| where TimeGenerated > ago(30d)
+| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'
+| summarize arg_max(TimeGenerated, *) by IncidentNumber
+| where Status == 'Closed' and isnotempty(ClosedTime)
+| where ClosedTime > ago(30d)
+| extend HoursToClose = datetime_diff('minute', ClosedTime, CreatedTime) / 60.0
+| where HoursToClose >= 0
+| summarize
+    AvgHours    = round(avg(HoursToClose), 2),
+    MedianHours = round(percentile(HoursToClose, 50), 2),
+    Closed      = count()
+    by Day = format_datetime(startofday(ClosedTime), 'yyyy-MM-dd')
+| order by Day asc

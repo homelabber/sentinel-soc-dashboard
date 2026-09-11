@@ -1,0 +1,129 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "triggers": {
+      "Every_hour": {
+        "type": "Recurrence",
+        "recurrence": {
+          "frequency": "Hour",
+          "interval": 1
+        }
+      }
+    },
+    "actions": {
+      "Query_Incident_Volume": {
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "https://api.loganalytics.io/v1/workspaces/YOUR_WORKSPACE_ID/query",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "query": "SecurityIncident\n| where TimeGenerated > ago(30d)\n| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where CreatedTime > ago(30d)\n| summarize Count = count() by Day = format_datetime(startofday(CreatedTime), 'yyyy-MM-dd'), Severity\n| order by Day asc"
+          },
+          "authentication": {
+            "type": "ManagedServiceIdentity",
+            "audience": "https://api.loganalytics.io"
+          }
+        }
+      },
+      "Query_MTTR": {
+        "runAfter": {
+          "Query_Incident_Volume": [ "Succeeded", "Failed" ]
+        },
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "https://api.loganalytics.io/v1/workspaces/YOUR_WORKSPACE_ID/query",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "query": "SecurityIncident\n| where TimeGenerated > ago(30d)\n| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status == 'Closed' and isnotempty(ClosedTime)\n| where ClosedTime > ago(30d)\n| extend HoursToClose = datetime_diff('minute', ClosedTime, CreatedTime) / 60.0\n| where HoursToClose >= 0\n| summarize AvgHours = round(avg(HoursToClose), 2), MedianHours = round(percentile(HoursToClose, 50), 2), Closed = count() by Day = format_datetime(startofday(ClosedTime), 'yyyy-MM-dd')\n| order by Day asc"
+          },
+          "authentication": {
+            "type": "ManagedServiceIdentity",
+            "audience": "https://api.loganalytics.io"
+          }
+        }
+      },
+      "Query_SLA_Compliance": {
+        "runAfter": {
+          "Query_MTTR": [ "Succeeded", "Failed" ]
+        },
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "https://api.loganalytics.io/v1/workspaces/YOUR_WORKSPACE_ID/query",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "query": "SecurityIncident\n| where TimeGenerated > ago(30d)\n| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where CreatedTime > ago(30d)\n| where Severity in ('Critical', 'High')\n| extend SLAHours = iff(Severity == 'Critical', 2.0, 8.0)\n| extend EndTime = iff(Status == 'Closed' and isnotempty(ClosedTime), ClosedTime, now())\n| extend HoursOpen = datetime_diff('minute', EndTime, CreatedTime) / 60.0\n| extend Breached = HoursOpen > SLAHours\n| summarize Total = count(), Breaches = countif(Breached) by Day = format_datetime(startofday(CreatedTime), 'yyyy-MM-dd')\n| extend CompliancePct = round(100.0 * (Total - Breaches) / Total, 1)\n| order by Day asc"
+          },
+          "authentication": {
+            "type": "ManagedServiceIdentity",
+            "audience": "https://api.loganalytics.io"
+          }
+        }
+      },
+      "Query_Open_Backlog": {
+        "runAfter": {
+          "Query_SLA_Compliance": [ "Succeeded", "Failed" ]
+        },
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "https://api.loganalytics.io/v1/workspaces/YOUR_WORKSPACE_ID/query",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "query": "let inc = SecurityIncident\n    | where TimeGenerated > ago(30d)\n    | where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n    | project CreatedTime, ClosedTime, Status, Severity\n    | extend k = 1;\nrange Offset from 0 to 29 step 1\n| extend Day = startofday(now()) - (29 - Offset) * 1d\n| extend k = 1\n| join kind=inner inc on k\n| extend EndOfDay = Day + 1d\n| where CreatedTime < EndOfDay\n| where Status != 'Closed' or isnull(ClosedTime) or ClosedTime >= EndOfDay\n| summarize OpenCount = count(), Critical = countif(Severity == 'Critical'), High = countif(Severity == 'High') by Day = format_datetime(Day, 'yyyy-MM-dd')\n| order by Day asc"
+          },
+          "authentication": {
+            "type": "ManagedServiceIdentity",
+            "audience": "https://api.loganalytics.io"
+          }
+        }
+      },
+      "Compose_Trends": {
+        "runAfter": {
+          "Query_Open_Backlog": [ "Succeeded", "Failed" ]
+        },
+        "type": "Compose",
+        "inputs": {
+          "generatedAt": "@{utcNow()}",
+          "incidentVolume": "@body('Query_Incident_Volume')?['tables']",
+          "mttr": "@body('Query_MTTR')?['tables']",
+          "slaCompliance": "@body('Query_SLA_Compliance')?['tables']",
+          "openBacklog": "@body('Query_Open_Backlog')?['tables']"
+        }
+      },
+      "Write_trends": {
+        "runAfter": {
+          "Compose_Trends": [ "Succeeded" ]
+        },
+        "type": "Http",
+        "inputs": {
+          "method": "PUT",
+          "uri": "https://YOUR_STORAGE_ACCOUNT.blob.core.windows.net/YOUR_CONTAINER_NAME/trends.json",
+          "headers": {
+            "x-ms-blob-type": "BlockBlob",
+            "Content-Type": "application/json",
+            "x-ms-version": "2020-04-08"
+          },
+          "body": "@outputs('Compose_Trends')",
+          "authentication": {
+            "type": "ManagedServiceIdentity",
+            "audience": "https://storage.azure.com/"
+          }
+        }
+      }
+    },
+    "parameters": {}
+  },
+  "parameters": {}
+}
