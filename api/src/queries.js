@@ -20,6 +20,7 @@ ${EXCLUDE_CORRELATION}
 | project IncidentNumber, Title, Severity, Status, CreatedTime, ClosedTime, LastModifiedTime,
     Owner = tostring(Owner.userPrincipalName),
     Classification, ClassificationReason,
+    IncidentUrl,
     Tactics = tostring(AdditionalData.tactics),
     AlertProductNames = tostring(AdditionalData.alertProductNames)
 | order by CreatedTime desc`;
@@ -33,6 +34,7 @@ ${EXCLUDE_CORRELATION}
 | project IncidentNumber, Title, Severity, Status, CreatedTime, LastModifiedTime,
     Owner = tostring(Owner.userPrincipalName),
     OwnerEmail = tostring(Owner.email),
+    IncidentUrl,
     Tactics = tostring(AdditionalData.tactics),
     AlertProductNames = tostring(AdditionalData.alertProductNames)
 | order by CreatedTime asc`;

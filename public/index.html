@@ -27,8 +27,36 @@
   --dim:    #3a5470;
   --text:   #8ab0cc;
   --bright: #c8dff0;
+  --nav-bg: rgba(5,7,12,0.98);
+  --scan:   rgba(0,0,0,0.05);
+  --accent: var(--accent);
   --mono:   "JetBrains Mono", monospace;
   --ui:     "Rajdhani", sans-serif;
+}
+
+/* ── LIGHT THEME ──
+   Only the palette is overridden; every rule below consumes these variables,
+   so the layout is untouched. The status hues (red/orange/green) are darkened
+   rather than reused: the neon values are tuned for a near-black background
+   and fail contrast badly on white. */
+html[data-theme="light"] {
+  --bg:     #eef2f7;
+  --s1:     #ffffff;
+  --s2:     #f5f8fc;
+  --border: #ccd8e6;
+  --b2:     #b3c5da;
+  --cyan:   #0067a5;
+  --red:    #c9184a;
+  --orange: #b45309;
+  --yellow: #8a6d00;
+  --green:  #0f7a3d;
+  --purple: #6d3fc4;
+  --dim:    #5a748c;
+  --text:   #2c4257;
+  --bright: #0d1b2a;
+  --nav-bg: rgba(255,255,255,0.98);
+  --scan:   transparent;
+  --accent: #b34b00;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{
@@ -40,7 +68,7 @@ html,body{
 }
 body::after{
   content:""; position:fixed; inset:0; pointer-events:none; z-index:9999;
-  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.05) 3px,rgba(0,0,0,0.05) 4px);
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,var(--scan) 3px,var(--scan) 4px);
 }
 
 /* ── LAYOUT ── */
@@ -53,7 +81,7 @@ body::after{
 
 /* ── NAV ── */
 nav{
-  background:rgba(5,7,12,0.98);
+  background:var(--nav-bg);
   border-bottom:1px solid var(--border);
   display:flex; align-items:center; justify-content:space-between;
   padding:0 20px;
@@ -66,9 +94,9 @@ nav{
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 .upd-time{font-family:var(--mono);font-size:9px;color:var(--dim);}
 .nav-pill{font-family:var(--ui);font-size:10px;font-weight:600;letter-spacing:1.5px;padding:3px 10px;border:1px solid var(--border);color:var(--dim);text-transform:uppercase;background:none;cursor:pointer;transition:all .2s;}
-.nav-pill:hover,.nav-pill.active{border-color:#d45c00;color:#d45c00;background:rgba(212,92,0,.08);}
-.filter-btn.active{border-color:#d45c00 !important;color:#d45c00 !important;background:rgba(212,92,0,.1) !important;box-shadow:0 0 8px rgba(212,92,0,.2);}
-#btnRefresh{font-family:var(--mono);font-size:9px;letter-spacing:1px;color:#d45c00;background:none;border:1px solid #d45c00;padding:3px 10px;cursor:pointer;text-transform:uppercase;}
+.nav-pill:hover,.nav-pill.active{border-color:var(--accent);color:var(--accent);background:rgba(212,92,0,.08);}
+.filter-btn.active{border-color:var(--accent) !important;color:var(--accent) !important;background:rgba(212,92,0,.1) !important;box-shadow:0 0 8px rgba(212,92,0,.2);}
+#btnRefresh{font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--accent);background:none;border:1px solid var(--accent);padding:3px 10px;cursor:pointer;text-transform:uppercase;}
 .err{background:rgba(255,45,85,.06);border:1px solid rgba(255,45,85,.25);padding:6px 12px;font-family:var(--mono);font-size:10px;color:var(--red);display:none;position:fixed;top:44px;left:0;right:0;z-index:200;}
 
 /* ── MAIN GRID ── */
@@ -144,9 +172,9 @@ nav{
   letter-spacing:2px;text-transform:uppercase;
   margin-bottom:8px;flex-shrink:0;
   display:flex;justify-content:space-between;align-items:center;
-  border-left:3px solid #d45c00;padding-left:8px;
+  border-left:3px solid var(--accent);padding-left:8px;
 }
-.card-hd-count{color:#d45c00;font-family:var(--mono);}
+.card-hd-count{color:var(--accent);font-family:var(--mono);}
 .card-body{flex:1;overflow:hidden;}
 
 /* ── BAR CHART ── */
@@ -224,6 +252,17 @@ tbody td{padding:5px 8px;font-size:10px;color:var(--bright);white-space:nowrap;}
 }
 .ticker-dot { width:5px;height:5px;border-radius:50%;background:var(--red);box-shadow:0 0 6px var(--red);flex-shrink:0;animation:blink 1.5s ease-in-out infinite; }
 .ticker-scroll { white-space:nowrap; animation: tickerscroll 30s linear infinite; }
+/* Pause the marquee on hover, otherwise advisory links slide out from under
+   the cursor before they can be clicked. */
+.ticker:hover .ticker-scroll { animation-play-state: paused; }
+.ticker-link { color:inherit; text-decoration:none; border-bottom:1px dotted rgba(255,45,85,.35); }
+.ticker-link:hover { color:var(--red); border-bottom-color:var(--red); }
+
+/* ── INCIDENT LINKS ── */
+.inc-link { color:inherit; text-decoration:none; border-bottom:1px dotted transparent; transition:border-color .15s,color .15s; }
+.inc-link:hover { color:var(--cyan); border-bottom-color:var(--cyan); }
+.inc-title:hover { color:var(--cyan); }
+.inc-link:focus-visible { outline:1px solid var(--cyan); outline-offset:2px; }
 @keyframes tickerscroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
 
 /* ── LOADING ── */
@@ -244,8 +283,8 @@ tbody td{padding:5px 8px;font-size:10px;color:var(--bright);white-space:nowrap;}
 
 <nav>
   <div class="nav-left">
-    <span style="font-family:var(--ui);font-size:13px;font-weight:700;color:var(--bright);letter-spacing:2px;">SOC<span style="color:#d45c00">:</span></span>
-    <div class="nav-pill" style="border-color:rgba(212,92,0,.5);color:#d45c00">Microsoft Sentinel</div>
+    <span style="font-family:var(--ui);font-size:13px;font-weight:700;color:var(--bright);letter-spacing:2px;">SOC<span style="color:var(--accent)">:</span></span>
+    <div class="nav-pill" style="border-color:rgba(212,92,0,.5);color:var(--accent)">Microsoft Sentinel</div>
     <div style="display:flex;gap:4px;margin-left:10px" id="viewSwitch">
       <button class="nav-pill view-btn active" data-view="live">◉ Live</button>
       <button class="nav-pill view-btn" data-view="trends">◈ Trends</button>
@@ -255,6 +294,7 @@ tbody td{padding:5px 8px;font-size:10px;color:var(--bright);white-space:nowrap;}
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
     <div class="upd-time" id="updTime">—</div>
     <div class="upd-time" id="userBadge" style="display:none"></div>
+    <button class="nav-pill" id="btnTheme" title="Toggle light / dark mode" aria-label="Toggle light or dark mode">☀ Light</button>
     <button id="btnRefresh">↺ Refresh</button>
   </div>
 </nav>
@@ -478,6 +518,26 @@ let allTrends = {};
 
 const $ = id => document.getElementById(id);
 
+// Incident titles and CISA feed entries are injected as innerHTML. Titles can
+// contain attacker-influenced strings (filenames, URLs, usernames captured by a
+// detection), so they are escaped rather than trusted.
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Only http(s) links are emitted, blocking javascript: and data: URLs that
+// would otherwise execute in this authenticated origin.
+function safeUrl(u) {
+  if (!u) return '';
+  try {
+    const parsed = new URL(u, window.location.origin);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return '';
+    return esc(parsed.href);
+  } catch (e) { return ''; }
+}
+
 function fmt(dt) {
   if (!dt) return '—';
   return new Date(dt).toLocaleString(LOCALE,{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
@@ -496,8 +556,21 @@ function hoursOpen(inc) {
   const e = (closed && stat==='Closed') ? new Date(closed) : new Date();
   return (e-s)/3600000;
 }
+// Resolves a CSS custom property at call time so chart colours follow the
+// active theme. The neon palette is unreadable on the light background, so
+// hard-coded hexes in JS would survive a theme switch and wash out.
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
 function sevColor(s) {
-  return {Critical:'#ff2d55',High:'#ff2d55',Medium:'#ffc800',Low:'#00e676',Informational:'#00d4ff'}[s]||'#2e4060';
+  return {
+    Critical:      cssVar('--red',    '#ff2d55'),
+    High:          cssVar('--red',    '#ff2d55'),
+    Medium:        cssVar('--yellow', '#ffc800'),
+    Low:           cssVar('--green',  '#00e676'),
+    Informational: cssVar('--cyan',   '#00d4ff')
+  }[s] || cssVar('--b2', '#2e4060');
 }
 function isSLABreached(inc) {
   const stat = inc.status||inc.Status||'';
@@ -623,12 +696,20 @@ function renderHighFeed() {
     const warn = isSLABreached(i);
     const sev  = i.severity||i.Severity||'';
     const stat = i.status||i.Status||'';
+    const num  = i.incidentNumber||i.IncidentNumber||'?';
+    const url  = safeUrl(i.incidentUrl||i.IncidentUrl);
+    const numCell = url
+      ? `<a class="inc-link" href="${url}" target="_blank" rel="noopener noreferrer" title="Open incident #${esc(num)} in Microsoft Sentinel">#${esc(num)} ↗</a>`
+      : `#${esc(num)}`;
+    const titleCell = url
+      ? `<a class="inc-link inc-title" href="${url}" target="_blank" rel="noopener noreferrer">${esc(i.title||i.Title||'—')}</a>`
+      : esc(i.title||i.Title||'—');
     return `<tr>
-      <td style="color:var(--cyan);font-family:var(--mono)">#${i.incidentNumber||i.IncidentNumber||'?'}</td>
-      <td style="color:var(--bright);max-width:220px;white-space:normal;line-height:1.3">${i.title||i.Title||'—'}</td>
-      <td><span class="sev sev-${sev}">${sev}</span></td>
-      <td><span class="stat-badge stat-${stat}">${stat}</span></td>
-      <td style="font-family:var(--mono);font-size:10px">${i.owner||i.Owner||'<span style="color:var(--red)">—</span>'}</td>
+      <td style="color:var(--cyan);font-family:var(--mono)">${numCell}</td>
+      <td style="color:var(--bright);max-width:220px;white-space:normal;line-height:1.3">${titleCell}</td>
+      <td><span class="sev sev-${esc(sev)}">${esc(sev)}</span></td>
+      <td><span class="stat-badge stat-${esc(stat)}">${esc(stat)}</span></td>
+      <td style="font-family:var(--mono);font-size:10px">${i.owner||i.Owner?esc(i.owner||i.Owner):'<span style="color:var(--red)">—</span>'}</td>
       <td style="font-family:var(--mono);font-size:10px;color:${warn?'var(--red)':stat==='Closed'?'var(--green)':'var(--text)'};font-weight:${warn?700:400}">${fmtH(h)}${warn?' ⚠':''}</td>
     </tr>`;
   }).join('');
@@ -651,10 +732,10 @@ function renderIngestion() {
 
   // Threshold colors
   function gbColor(gb) {
-    if (gb >= 350) return "#ff2d55";
-    if (gb >= 300) return "#ff8c00";
-    if (gb >= 250) return "#ffc800";
-    return "#00e676";
+    if (gb >= 350) return cssVar('--red',    '#ff2d55');
+    if (gb >= 300) return cssVar('--orange', '#ff8c00');
+    if (gb >= 250) return cssVar('--yellow', '#ffc800');
+    return cssVar('--green', '#00e676');
   }
 
   const todayColor = gbColor(total);
@@ -682,10 +763,10 @@ function renderIngestion() {
       <div style="display:flex;justify-content:space-between;margin-top:4px">
         <span style="font-family:var(--mono);font-size:8px;color:var(--dim)">${(trend[0]?.day||trend[0]?.Day||'').substring(5,10)}</span>
         <span style="font-family:var(--mono);font-size:8px;display:flex;gap:10px;align-items:center">
-          <span style="color:#00e676">■ &lt;250</span>
-          <span style="color:#ffc800">■ 250+</span>
-          <span style="color:#ff8c00">■ 300+</span>
-          <span style="color:#ff2d55">■ 350+</span>
+          <span style="color:var(--green)">■ &lt;250</span>
+          <span style="color:var(--yellow)">■ 250+</span>
+          <span style="color:var(--orange)">■ 300+</span>
+          <span style="color:var(--red)">■ 350+</span>
         </span>
         <span style="font-family:var(--mono);font-size:8px;color:var(--dim)">${(trend[trend.length-1]?.day||trend[trend.length-1]?.Day||'').substring(5,10)}</span>
       </div>
@@ -720,7 +801,10 @@ function renderAnalysts() {
     amap90[key]=(amap90[key]||0)+1;
   });
 
-  const ANALYST_COLORS = ["#00d4ff","#00e676","#b388ff","#ffc800","#ff8c00","#ff2d55"];
+  const ANALYST_COLORS = [
+    cssVar('--cyan','#00d4ff'), cssVar('--green','#00e676'), cssVar('--purple','#b388ff'),
+    cssVar('--yellow','#ffc800'), cssVar('--orange','#ff8c00'), cssVar('--red','#ff2d55')
+  ];
 
   const unaTile = '';
 
@@ -792,12 +876,12 @@ function renderAgeDist() {
   $('ageTotal').textContent = inc.length + ' open';
 
   const buckets = [
-    { label: '< 1 day',   min:0,   max:24,   color:'#00e676', count:0 },
-    { label: '1 – 3d',    min:24,  max:72,   color:'#66ffaa', count:0 },
-    { label: '3 – 7d',    min:72,  max:168,  color:'#ffc800', count:0 },
-    { label: '1 – 2w',    min:168, max:336,  color:'#ff8c00', count:0 },
-    { label: '2w – 1m',   min:336, max:720,  color:'#ff5533', count:0 },
-    { label: '> 1 month', min:720, max:99999,color:'#ff2d55', count:0 },
+    { label: '< 1 day',   min:0,   max:24,   color:cssVar('--green','#00e676'),  count:0 },
+    { label: '1 – 3d',    min:24,  max:72,   color:cssVar('--cyan','#66ffaa'),   count:0 },
+    { label: '3 – 7d',    min:72,  max:168,  color:cssVar('--yellow','#ffc800'), count:0 },
+    { label: '1 – 2w',    min:168, max:336,  color:cssVar('--orange','#ff8c00'), count:0 },
+    { label: '2w – 1m',   min:336, max:720,  color:cssVar('--purple','#ff5533'), count:0 },
+    { label: '> 1 month', min:720, max:99999,color:cssVar('--red','#ff2d55'),    count:0 },
   ];
 
   inc.forEach(i => {
@@ -881,16 +965,24 @@ function renderIncFeed() {
     let _prod = i.alertProductNames||[];
     if(typeof _prod==="string"){try{_prod=JSON.parse(_prod)}catch(e){_prod=[];}}
     const prod = (_prod[0]||"—").replace("Azure Sentinel","Sentinel").replace("Microsoft Defender Advanced Threat Protection","MDE").replace("Office 365 Advanced Threat Protection","MDO").replace("Azure Active Directory Identity Protection","AADIP").replace("Microsoft Cloud App Security","MCAS");
+    const inum = i.incidentNumber||i.IncidentNumber||"?";
+    const url  = safeUrl(i.incidentUrl||i.IncidentUrl);
+    const numCell = url
+      ? `<a class="inc-link" href="${url}" target="_blank" rel="noopener noreferrer" title="Open incident #${esc(inum)} in Microsoft Sentinel">#${esc(inum)} ↗</a>`
+      : `#${esc(inum)}`;
+    const titleCell = url
+      ? `<a class="inc-link inc-title" href="${url}" target="_blank" rel="noopener noreferrer">${esc(i.title||i.Title||"—")}</a>`
+      : esc(i.title||i.Title||"—");
     return `<tr>
-      <td style="color:var(--cyan);font-family:var(--mono)">#${i.incidentNumber||i.IncidentNumber||"?"}</td>
-      <td style="color:var(--bright);max-width:260px;white-space:normal;line-height:1.3">${i.title||i.Title||"—"}</td>
-      <td><span class="sev sev-${sev}">${sev}</span></td>
-      <td><span class="stat-badge stat-${stat}">${stat}</span></td>
-      <td style="font-family:var(--mono);font-size:10px">${i.owner||i.Owner||"<span style='color:var(--dim)'>—</span>"}</td>
+      <td style="color:var(--cyan);font-family:var(--mono)">${numCell}</td>
+      <td style="color:var(--bright);max-width:260px;white-space:normal;line-height:1.3">${titleCell}</td>
+      <td><span class="sev sev-${esc(sev)}">${esc(sev)}</span></td>
+      <td><span class="stat-badge stat-${esc(stat)}">${esc(stat)}</span></td>
+      <td style="font-family:var(--mono);font-size:10px">${i.owner||i.Owner?esc(i.owner||i.Owner):"<span style='color:var(--dim)'>—</span>"}</td>
       <td style="font-family:var(--mono)">${fmt(i.createdTime||i.CreatedTime||i.createdTimeUtc)}</td>
       <td style="font-family:var(--mono);color:${warn?"var(--red)":stat==="Closed"?"var(--green)":"var(--text)"};font-weight:${warn?700:400}">${fmtH(h)}${warn?" ⚠":""}</td>
-      <td style="font-family:var(--mono);font-size:9px;color:var(--dim)">${prod}</td>
-      <td style="font-family:var(--mono);font-size:9px;color:var(--dim)">${tactics}</td>
+      <td style="font-family:var(--mono);font-size:9px;color:var(--dim)">${esc(prod)}</td>
+      <td style="font-family:var(--mono);font-size:9px;color:var(--dim)">${esc(tactics)}</td>
     </tr>`;
   }).join("");
 }
@@ -1159,6 +1251,45 @@ function setView(v) {
 document.querySelectorAll('.view-btn')
   .forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
 
+// ── Theme switching ──
+// SVG charts and the canvas-ish bar markup bake their colours in at render
+// time, so flipping the CSS variables alone leaves stale neon fills behind.
+// Every switch therefore re-renders whichever view is on screen.
+function applyTheme(theme) {
+  const light = theme === 'light';
+  document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+  const btn = $('btnTheme');
+  if (btn) {
+    btn.textContent = light ? '☾ Dark' : '☀ Light';
+    btn.title = light ? 'Switch to dark mode' : 'Switch to light mode';
+  }
+  try { localStorage.setItem('socTheme', light ? 'light' : 'dark'); } catch (e) { /* private mode */ }
+
+  if (typeof allIncidents !== 'undefined' && allIncidents.length) {
+    render();
+  }
+  if (currentView === 'trends') requestAnimationFrame(renderTrends);
+}
+
+(function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem('socTheme'); } catch (e) { /* private mode */ }
+  // No stored choice: follow the OS preference. Wall displays stay dark.
+  if (!saved) {
+    saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', saved);
+  const btn = $('btnTheme');
+  if (btn) {
+    btn.textContent = saved === 'light' ? '☾ Dark' : '☀ Light';
+    btn.addEventListener('click', () => {
+      const now = document.documentElement.getAttribute('data-theme');
+      applyTheme(now === 'light' ? 'dark' : 'light');
+    });
+  }
+})();
+
 // Re-measure charts when the window resizes (wall displays get resized once,
 // then never again — but this keeps dev/browser use sane).
 let resizeTimer;
@@ -1192,11 +1323,20 @@ async function fetchThreatFeed() {
     if (!items.length) throw new Error('No items');
 
     // Build scrolling text: title · date · title · date ...
+    // Each entry links to the advisory. target=_blank with rel=noopener so the
+    // opened tab cannot reach back into this authenticated session via
+    // window.opener. Titles are escaped: they come from a third-party feed and
+    // are injected as innerHTML.
     const text = items
       .slice(0, 20)
       .map(i => {
         const date = new Date(i.pubDate).toLocaleDateString(LOCALE, {day:'2-digit',month:'short'});
-        return `${i.title} &nbsp;<span style="color:rgba(255,45,85,.5)">${date}</span>`;
+        const safeTitle = esc(i.title || 'Untitled advisory');
+        const href = safeUrl(i.link);
+        const inner = `${safeTitle} &nbsp;<span style="color:rgba(255,45,85,.5)">${date}</span>`;
+        return href
+          ? `<a class="ticker-link" href="${href}" target="_blank" rel="noopener noreferrer">${inner}</a>`
+          : inner;
       })
       .join(' &nbsp;&nbsp;·&nbsp;&nbsp; ');
 
