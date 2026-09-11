@@ -2,11 +2,19 @@
   "$schema": "https://json.schemastore.org/staticwebapp.config.json",
 
   "//": [
-    "Replace __TENANT_ID__ with your Microsoft Entra tenant GUID before deploying.",
-    "infra/deploy.ps1 does this substitution automatically.",
-    "Using a tenant-specific issuer (rather than /common) is what restricts",
-    "sign-in to your organisation only. With the built-in Microsoft provider,",
-    "ANY Microsoft account - including personal ones - could authenticate."
+    "The openIdIssuer below is pinned to the tenant GUID rather than /common.",
+    "That is what restricts sign-in to this organisation only; with the built-in",
+    "Microsoft provider ANY Microsoft account, including personal ones, could",
+    "authenticate.",
+    "",
+    "The /.auth/* route MUST stay ahead of the /* catch-all. Without it the",
+    "catch-all also matches /.auth/login/aad/callback, so the callback returns",
+    "401, the 401 override bounces back to /.auth/login/aad, and sign-in loops",
+    "forever with a fresh nonce each round.",
+    "",
+    "403 deliberately has no responseOverride. Rewriting it to /index.html would",
+    "send an authenticated-but-unassigned user to a page that itself requires a",
+    "role, producing a second loop."
   ],
 
   "auth": {
@@ -35,7 +43,6 @@
       "statusCode": 404
     },
     {
-      "//": "Must precede the /* catch-all. Without it the catch-all also matches the AAD callback, so the callback itself returns 401, the 401 override bounces back to /.auth/login/aad, and sign-in loops forever.",
       "route": "/.auth/*",
       "allowedRoles": ["anonymous", "authenticated"]
     },
@@ -54,12 +61,7 @@
     "401": {
       "statusCode": 302,
       "redirect": "/.auth/login/aad"
-    },
-    "//": [
-      "403 deliberately has no rewrite. Rewriting to /index.html would send an",
-      "authenticated-but-unassigned user to a page that itself requires a role,",
-      "producing a second redirect loop. The default 403 page is correct here."
-    ]
+    }
   },
 
   "globalHeaders": {
