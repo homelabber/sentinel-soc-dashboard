@@ -11,16 +11,41 @@
 
 ## Step 1 — Storage Account
 
+> **Only needed for `DATA_SOURCE=blob`.** If you deploy the Static Web App +
+> API described in Step 6, the browser never touches storage and you can skip
+> this section entirely. That is the recommended path.
+
 1. Create a Storage Account in Azure (or use existing)
 2. Create a Blob container, e.g. `soc-dashboard`
-3. Set container access to **Blob** (public read for blobs) — or keep private and use a proxy
+3. Set container access to **Private (no anonymous access)**
 4. Note your storage account name and container name
 
-**CORS** — go to Storage Account → Resource sharing (CORS) → Blob service, add:
+> ⚠️ **Do not make the container publicly readable.** The blobs written here
+> (`incidents.json`, `open-incidents.json`, `age-distribution.json`,
+> `metrics.json`) contain live incident titles, severities, statuses, analyst
+> UPNs and email addresses, and SLA breach state. The container and file names
+> are fixed and guessable, so "public read for blobs" means anyone who can
+> construct the URL can read your organisation's current SOC posture — which
+> detections fired, which are unowned, and which are past SLA. That is a
+> roadmap for an attacker already inside the environment.
+>
+> Earlier revisions of this guide recommended public-read plus a `*` CORS rule
+> so the static page could `fetch()` the blobs directly. **If you followed that,
+> audit the container now:** set anonymous access to Private, and remove any
+> wildcard CORS rule.
+
+Serve the data through the authenticated API instead (Step 6). It reads the
+blobs — or queries Log Analytics directly — using a managed identity, so no
+storage key, SAS token or anonymous endpoint is ever exposed to the browser,
+and the data inherits the dashboard's Entra sign-in requirement.
+
+**CORS** — not required when the API proxies the data, because the browser only
+ever calls the dashboard's own origin. If you are running the legacy direct-to-blob
+mode, scope the origin to your exact dashboard URL rather than `*`:
 
 | Allowed origins | Allowed methods | Allowed headers | Max age |
 |---|---|---|---|
-| `*` | `GET` | `*` | `86400` |
+| `https://<your-dashboard-host>` | `GET` | `*` | `86400` |
 
 ---
 

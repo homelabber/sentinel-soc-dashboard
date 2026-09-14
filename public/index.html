@@ -509,6 +509,18 @@ const LOCALE = 'en-US';
 const FEED_ENABLED = true;
 const FEED_URL     = 'https://www.cisa.gov/cybersecurity-advisories/all.xml';
 const FEED_LABEL   = 'CISA';
+// Hosts whose links the ticker is allowed to render as clickable anchors.
+//
+// The feed is relayed through a free third-party service (api.rss2json.com), so
+// its response is not trustworthy: whoever controls that relay controls both the
+// link text and the destination of items displayed under a "CISA" label, on a
+// dashboard that authenticated SOC analysts trust. esc() stops script execution,
+// but not a plausible-looking advisory link pointing at an attacker's page.
+//
+// Anchoring the host here means a hostile relay can at worst show misleading
+// text, never redirect a click off-domain. The full fix is to fetch and parse
+// the feed server-side in the API and drop the relay entirely.
+const FEED_LINK_HOSTS = ['cisa.gov', 'www.cisa.gov'];
 
 let allIncidents = [];
 let allOpenIncidents = [];
@@ -534,6 +546,18 @@ function safeUrl(u) {
   try {
     const parsed = new URL(u, window.location.origin);
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return '';
+    return esc(parsed.href);
+  } catch (e) { return ''; }
+}
+
+// Like safeUrl(), but additionally pins the host to an allow-list. Used for
+// links whose source is a third party rather than our own tenant's data.
+function safeUrlFromHosts(u, hosts) {
+  if (!u) return '';
+  try {
+    const parsed = new URL(u, window.location.origin);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return '';
+    if (!hosts.includes(parsed.hostname.toLowerCase())) return '';
     return esc(parsed.href);
   } catch (e) { return ''; }
 }
@@ -851,7 +875,7 @@ function renderAnalysts() {
         .sort((a,b)=>a-b)[0];
       const oldestH = oldest90 ? (Date.now()-oldest90)/3600000 : null;
       return `<div class="analyst-tile" style="border-left-color:${color}">
-        <div class="analyst-name" style="color:${color}">${shortName}</div>
+        <div class="analyst-name" style="color:${color}">${esc(shortName)}</div>
         <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;align-items:center">
           <div style="text-align:center">
             <div class="a-lbl">Open 24h</div>
@@ -880,7 +904,7 @@ function renderBars(id, rows, maxOverride) {
   const max=maxOverride||Math.max(...rows.map(r=>r.val),1);
   $(id).innerHTML=rows.map(r=>`
     <div class="bar-row">
-      <div class="bar-lbl" title="${r.label}">${r.label}</div>
+      <div class="bar-lbl" title="${esc(r.label)}">${esc(r.label)}</div>
       <div class="bar-track">
         <div class="bar-fill" style="width:${Math.max(2,(r.val/max)*100).toFixed(1)}%;background:${r.color||'var(--cyan)'}">
           <span class="bar-num">${r.display!==undefined?r.display:r.val}</span>
@@ -1353,7 +1377,7 @@ async function fetchThreatFeed() {
       .map(i => {
         const date = new Date(i.pubDate).toLocaleDateString(LOCALE, {day:'2-digit',month:'short'});
         const safeTitle = esc(i.title || 'Untitled advisory');
-        const href = safeUrl(i.link);
+        const href = safeUrlFromHosts(i.link, FEED_LINK_HOSTS);
         const inner = `${safeTitle} &nbsp;<span style="color:rgba(255,45,85,.5)">${date}</span>`;
         return href
           ? `<a class="ticker-link" href="${href}" target="_blank" rel="noopener noreferrer">${inner}</a>`
