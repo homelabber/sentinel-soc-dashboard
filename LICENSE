@@ -20,35 +20,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Provenance note
----------------
-
-This repository is a fork of:
-
-    https://github.com/Jeroenvdbroek/sentinel-soc-dashboard
-    Copyright (c) 2026 Jeroen van der Broek
-
-At the time this fork was published, the upstream repository did NOT contain a
-LICENSE file. The MIT terms above are applied here on the basis of the licence
-the upstream author states in their own published documentation:
-
-    "Built for enterprise SOC teams - Microsoft Sentinel - MIT License -
-     Adapt freely"
-        -- docs/index.html, footer
-
-    "Built for a SOC running Microsoft Sentinel. Adapt freely."
-        -- README.md
-
-That is a clear statement of intent, but it is not a formal licence grant, and
-the upstream repository's own metadata reports no licence. Anyone relying on
-this for anything beyond personal use should confirm the terms with the
-upstream author directly rather than depending on this file.
-
-The second copyright line covers only the modifications made in this fork:
-Azure Static Web Apps hosting with Entra ID authentication, the App Service
-direct-query API, the Teams alerting Logic App, the 30-day trend queries, the
-Microsoft Defender portal deep links, the security hardening, and the
-screenshot tooling. It asserts no claim over the original work.

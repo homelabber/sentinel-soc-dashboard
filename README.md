@@ -241,8 +241,8 @@ PRs welcome. Especially interested in:
 
 MIT — see [LICENSE](LICENSE).
 
-⚠️ **Read the provenance note in that file before relying on it.** This is a
-fork of [Jeroenvdbroek/sentinel-soc-dashboard](https://github.com/Jeroenvdbroek/sentinel-soc-dashboard),
+⚠️ **Read [NOTICE](NOTICE) before relying on it.** This is a fork of
+[Jeroenvdbroek/sentinel-soc-dashboard](https://github.com/Jeroenvdbroek/sentinel-soc-dashboard),
 and at the time this fork was published **the upstream repository contained no
 LICENSE file**. The MIT terms here follow the licence the upstream author states
 in their own documentation ("MIT License · Adapt freely"), which is a clear
