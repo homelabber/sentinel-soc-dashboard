@@ -26,7 +26,7 @@
             "x-ms-version": "2020-04-08"
           },
           "body": {
-            "query": "SecurityIncident\n| where TimeGenerated > ago(24h)\n| where CreatedTime > ago(24h)\n|  where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| project IncidentNumber, Title, Severity, Status, CreatedTime, ClosedTime, LastModifiedTime,\n  Owner=tostring(Owner.userPrincipalName),\n  Classification, ClassificationReason,\n  Tactics=tostring(AdditionalData.tactics),\n  AlertProductNames=tostring(AdditionalData.alertProductNames)\n| order by CreatedTime desc"
+            "query": "SecurityIncident\n| where TimeGenerated > ago(24h)\n| where CreatedTime > ago(24h)\n|  where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend _DefenderUrl = tostring(AdditionalData.providerIncidentUrl)\n| extend _DefenderUrl = iff(isnotempty(_DefenderUrl), _DefenderUrl,\n    iff(ProviderName == 'Microsoft XDR' and isnotempty(ProviderIncidentId),\n        strcat('https://security.microsoft.com/incident2/', ProviderIncidentId, '/overview'),\n        ''))\n| extend IncidentLink = iff(isnotempty(_DefenderUrl), _DefenderUrl, IncidentUrl)\n| extend LinkTarget = iff(isnotempty(_DefenderUrl), 'defender', 'azure')\n| project IncidentNumber, Title, Severity, Status, CreatedTime, ClosedTime, LastModifiedTime,\n  IncidentUrl, IncidentLink, LinkTarget,\n  Owner=tostring(Owner.userPrincipalName),\n  Classification, ClassificationReason,\n  Tactics=tostring(AdditionalData.tactics),\n  AlertProductNames=tostring(AdditionalData.alertProductNames)\n| order by CreatedTime desc"
           },
           "authentication": {
             "type": "ManagedServiceIdentity",
@@ -73,7 +73,7 @@
             "x-ms-version": "2020-04-08"
           },
           "body": {
-            "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != 'Closed'\n| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'\n| project IncidentNumber, Title, Severity, Status, CreatedTime, LastModifiedTime,\n  Owner=tostring(Owner.userPrincipalName),\n  OwnerEmail=tostring(Owner.email),\n  Tactics=tostring(AdditionalData.tactics),\n  AlertProductNames=tostring(AdditionalData.alertProductNames)\n| order by CreatedTime asc"
+            "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != 'Closed'\n| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'\n| extend _DefenderUrl = tostring(AdditionalData.providerIncidentUrl)\n| extend _DefenderUrl = iff(isnotempty(_DefenderUrl), _DefenderUrl,\n    iff(ProviderName == 'Microsoft XDR' and isnotempty(ProviderIncidentId),\n        strcat('https://security.microsoft.com/incident2/', ProviderIncidentId, '/overview'),\n        ''))\n| extend IncidentLink = iff(isnotempty(_DefenderUrl), _DefenderUrl, IncidentUrl)\n| extend LinkTarget = iff(isnotempty(_DefenderUrl), 'defender', 'azure')\n| project IncidentNumber, Title, Severity, Status, CreatedTime, LastModifiedTime,\n  IncidentUrl, IncidentLink, LinkTarget,\n  Owner=tostring(Owner.userPrincipalName),\n  OwnerEmail=tostring(Owner.email),\n  Tactics=tostring(AdditionalData.tactics),\n  AlertProductNames=tostring(AdditionalData.alertProductNames)\n| order by CreatedTime asc"
           },
           "authentication": {
             "type": "ManagedServiceIdentity",
