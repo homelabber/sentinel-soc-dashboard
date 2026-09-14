@@ -180,6 +180,9 @@ p code,li code{
 .warn strong{color:var(--orange);}
 .note strong{color:var(--blue);}
 .tip strong{color:var(--green);}
+/* Lists inside callouts need their padding back after the global reset. */
+.warn ul,.note ul,.tip ul{margin:10px 0 0;padding-left:20px;}
+.warn ul li,.note ul li,.tip ul li{margin-bottom:6px;line-height:1.55;}
 .callout-label{
   font-family:var(--mono);font-size:9px;letter-spacing:1.5px;
   text-transform:uppercase;display:block;margin-bottom:6px;font-weight:500;
@@ -301,7 +304,7 @@ footer p{font-family:var(--mono);font-size:10px;color:#888;letter-spacing:.5px;}
     <a href="#architecture">Architecture</a>
     <a href="#kql">KQL</a>
     <a href="#deploy">Deploy</a>
-    <a href="https://github.com/Jeroenvdbroek/sentinel-soc-dashboard/" target="_blank" class="nav-gh">GitHub ↗</a>
+    <a href="https://github.com/homelabber/sentinel-soc-dashboard/" target="_blank" class="nav-gh">GitHub ↗</a>
   </div>
 </nav>
 
@@ -836,6 +839,26 @@ footer p{font-family:var(--mono);font-size:10px;color:#888;letter-spacing:.5px;}
 
   <hr>
 
+  <div class="tip">
+    <span class="callout-label">Forked from Jeroenvdbroek/sentinel-soc-dashboard</span>
+    This is a fork of <a href="https://github.com/Jeroenvdbroek/sentinel-soc-dashboard/" target="_blank">Jeroenvdbroek/sentinel-soc-dashboard</a>,
+    which is the origin of the architecture and the dashboard described above. Everything on this page up to
+    this point describes that original design. This fork keeps it and adds the following:
+    <ul>
+      <li><strong>Azure Static Web Apps hosting with Entra ID authentication</strong> — listed above as future work.
+          The blob container no longer needs public read access.</li>
+      <li><strong>A direct-query API</strong> — an App Service backend that queries Log Analytics over managed identity
+          (<code>DATA_SOURCE=loganalytics</code>), so the dashboard can run without the Logic App and blob hop.
+          Blob mode still works and both modes return the same shape.</li>
+      <li><strong>A Teams alerting Logic App</strong> — also listed above as future work. Adaptive cards for new
+          Critical/High incidents and for SLA breaches at the moment they cross the threshold.</li>
+      <li><strong>30-day trend queries</strong> — incident volume, MTTR, SLA compliance and open backlog.</li>
+      <li><strong>Microsoft Defender portal deep links</strong> — incident links resolve to
+          <code>security.microsoft.com</code> via <code>AdditionalData.providerIncidentUrl</code> rather than the
+          Azure portal Sentinel blade, which is unsupported after 2027-03-31.</li>
+    </ul>
+  </div>
+
   <div class="note">
     <span class="callout-label">Contributing</span>
     PRs welcome. Especially interested in support for other SIEM platforms, a light/dark theme toggle, and KQL queries for Defender for Endpoint telemetry. See the repo on GitHub.
@@ -844,8 +867,9 @@ footer p{font-family:var(--mono);font-size:10px;color:#888;letter-spacing:.5px;}
 </div>
 
 <footer>
-  <p>Built for enterprise SOC teams · Microsoft Sentinel · MIT License · Adapt freely</p>
-  <a class="footer-gh" href="https://github.com/Jeroenvdbroek/sentinel-soc-dashboard/" target="_blank">View on GitHub ↗</a>
+  <p>Built for enterprise SOC teams · Microsoft Sentinel · MIT License · Adapt freely<br>
+     Forked from <a href="https://github.com/Jeroenvdbroek/sentinel-soc-dashboard/" target="_blank" style="color:#aaa">Jeroenvdbroek/sentinel-soc-dashboard</a></p>
+  <a class="footer-gh" href="https://github.com/homelabber/sentinel-soc-dashboard/" target="_blank">View on GitHub ↗</a>
 </footer>
 
 <script>
