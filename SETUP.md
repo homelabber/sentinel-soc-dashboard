@@ -165,7 +165,10 @@ To use a different feed, find `fetchNCSCFeed()` and replace the RSS URL.
 **Dashboard shows no data**
 - Check browser console for CORS errors
 - Verify Logic Apps ran successfully (green in run history)
-- Check blob container has public read access or correct CORS rules
+- In blob mode, confirm the API's managed identity can read the container
+- If the API returns 401, check the "Azure Static Web Apps (Linked)" identity
+  provider still exists on the App Service (see *Securing the App Service
+  backend*), and that no network access restriction has been added
 
 **Logic App fails on LA query**
 - Verify Managed Identity has Log Analytics Reader role
@@ -174,3 +177,81 @@ To use a different feed, find `fetchNCSCFeed()` and replace the RSS URL.
 **Logic App fails on blob write**
 - Verify Managed Identity has Storage Blob Data Contributor role
 - Check storage account name and container name are correct
+
+---
+
+## Securing the App Service backend
+
+The API is attached to the Static Web App as a **linked backend**. Understanding
+how that is secured matters, because two reasonable-looking hardening steps will
+break it.
+
+### What protects the backend today
+
+Linking the backend causes Static Web Apps to create an identity provider named
+**"Azure Static Web Apps (Linked)"** in the App Service's authentication
+settings. It is configured to accept requests only when they arrive through the
+SWA proxy, which is what makes direct calls to
+`https://<app>.azurewebsites.net` return `401` instead of serving data.
+
+Verify it is on:
+
+```bash
+az webapp auth show --name <app> --resource-group <rg> --query enabled
+# expect: true
+curl -s -o /dev/null -w '%{http_code}' https://<app>.azurewebsites.net/health
+# expect: 401
+```
+
+> ⚠️ **Do not delete that identity provider.** Removing it is the documented way
+> to make a linked backend publicly reachable — which, for this app, means
+> anonymous access to an API that reads Sentinel with a managed identity.
+
+### ⚠️ Do NOT add network access restrictions or a private endpoint
+
+The SWA proxy runs outside your virtual network, so it cannot reach a
+network-isolated backend. Microsoft states that network-isolated backends are
+**not supported** with the bring-your-own-API feature: enabling IP restrictions,
+service-tag rules, VNet integration or a private endpoint on the App Service
+stops the SWA proxy from reaching it and the dashboard goes blank.
+
+The access restriction on this App Service must stay **Allow all**. That is not
+an oversight; the authentication layer above is the control.
+
+### Application-level checks
+
+`api/src/server.js` independently validates the caller as defence in depth. It
+decodes `x-ms-client-principal` and requires a known `identityProvider` and the
+`authenticated` role. Relevant app settings:
+
+| Setting | Value | Notes |
+|---|---|---|
+| `NODE_ENV` | `production` | Makes `REQUIRE_AUTH_HEADER=false` be ignored, so a stale dev setting cannot expose the API. Defaults to production when unset. |
+| `ALLOWED_IDENTITY_PROVIDERS` | *(unset)* | Defaults to `aad,azureactivedirectory`. |
+| `REQUIRED_ROLE` | *(unset)* | Defaults to `authenticated`. |
+| `EXPECTED_TENANT_ID` | **leave unset** | See below. |
+
+> ⚠️ **`EXPECTED_TENANT_ID` does nothing on the SWA path — do not rely on it.**
+> Static Web Apps does not forward the `claims` array to a backend. Microsoft
+> documents the backend as receiving *"the same user information as a client
+> application, with the exception of the `claims` array"*. `identityProvider`,
+> `userId`, `userDetails` and `userRoles` do arrive; `claims` do not, so there is
+> no `tid` to compare. The code therefore skips the tenant check when claims are
+> absent rather than rejecting everyone.
+>
+> Tenant restriction is enforced instead by pinning `openIdIssuer` to the tenant
+> GUID in `public/staticwebapp.config.json`. That is what stops arbitrary
+> Microsoft accounts — including personal ones — from signing in.
+
+### Deploying the API
+
+The GitHub Action has `api_location: ""`, so it deploys **only `public/`**.
+Changes under `api/` require a separate deploy:
+
+```bash
+cd api && zip -r ../api.zip package.json src
+az webapp deploy --name <app> --resource-group <rg> --src-path ../api.zip --type zip
+```
+
+`SCM_DO_BUILD_DURING_DEPLOYMENT=true` makes App Service run `npm install`, so
+`node_modules` does not need to be in the zip.
