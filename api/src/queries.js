@@ -11,16 +11,42 @@
 const EXCLUDE_CORRELATION =
   "| where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'";
 
+// Resolve the best incident link.
+//
+// IncidentUrl points at the Azure portal Sentinel blade, which is on a clock:
+// Sentinel in the Azure portal is unsupported after 2027-03-31. Once a
+// workspace is onboarded to the unified Defender portal, Sentinel populates
+// AdditionalData.providerIncidentUrl with the Defender deep link
+// (https://security.microsoft.com/incident2/{id}/overview?tid={tenant}).
+//
+// DO NOT build this URL from IncidentNumber. The Defender XDR incident ID is a
+// separate ID space -- measured in this workspace, IncidentNumber 2673 maps to
+// Defender incident 8754. Constructing from IncidentNumber sends analysts to a
+// DIFFERENT INCIDENT, which is worse than a dead link.
+//
+// ProviderIncidentId does match the Defender ID (verified 511/511 rows), so it
+// is a safe fallback if providerIncidentUrl is ever absent -- e.g. rows created
+// before onboarding, when ProviderName was 'Azure Sentinel'.
+const DEFENDER_LINK = `
+| extend _DefenderUrl = tostring(AdditionalData.providerIncidentUrl)
+| extend _DefenderUrl = iff(isnotempty(_DefenderUrl), _DefenderUrl,
+    iff(ProviderName == 'Microsoft XDR' and isnotempty(ProviderIncidentId),
+        strcat('https://security.microsoft.com/incident2/', ProviderIncidentId, '/overview'),
+        ''))
+| extend IncidentLink = iff(isnotempty(_DefenderUrl), _DefenderUrl, IncidentUrl)
+| extend LinkTarget = iff(isnotempty(_DefenderUrl), 'defender', 'azure')`;
+
 const INCIDENTS_24H = `
 SecurityIncident
 | where TimeGenerated > ago(24h)
 | where CreatedTime > ago(24h)
 ${EXCLUDE_CORRELATION}
 | summarize arg_max(TimeGenerated, *) by IncidentNumber
+${DEFENDER_LINK}
 | project IncidentNumber, Title, Severity, Status, CreatedTime, ClosedTime, LastModifiedTime,
     Owner = tostring(Owner.userPrincipalName),
     Classification, ClassificationReason,
-    IncidentUrl,
+    IncidentUrl, IncidentLink, LinkTarget,
     Tactics = tostring(AdditionalData.tactics),
     AlertProductNames = tostring(AdditionalData.alertProductNames)
 | order by CreatedTime desc`;
@@ -31,10 +57,11 @@ SecurityIncident
 ${EXCLUDE_CORRELATION}
 | summarize arg_max(TimeGenerated, *) by IncidentNumber
 | where Status != 'Closed'
+${DEFENDER_LINK}
 | project IncidentNumber, Title, Severity, Status, CreatedTime, LastModifiedTime,
     Owner = tostring(Owner.userPrincipalName),
     OwnerEmail = tostring(Owner.email),
-    IncidentUrl,
+    IncidentUrl, IncidentLink, LinkTarget,
     Tactics = tostring(AdditionalData.tactics),
     AlertProductNames = tostring(AdditionalData.alertProductNames)
 | order by CreatedTime asc`;

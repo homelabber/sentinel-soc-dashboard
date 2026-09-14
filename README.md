@@ -2,7 +2,15 @@
 
 > A real-time security operations dashboard that runs in any browser, costs almost nothing to operate, and fits on a 50-inch screen.
 
-**Repository:** `[jeroenvdbroek.github.io/sentinel-soc-dashboard)` · [GitHub Pages blog](https://jeroenvdbroek.github.io/sentinel-soc-dashboard)
+**Forked from [Jeroenvdbroek/sentinel-soc-dashboard](https://github.com/Jeroenvdbroek/sentinel-soc-dashboard)** ([GitHub Pages blog](https://jeroenvdbroek.github.io/sentinel-soc-dashboard)), which is the origin of the architecture described below.
+
+This fork adds:
+
+- **Azure Static Web Apps hosting with Entra ID authentication** — the blob container no longer needs public read access.
+- **A direct-query API** — an App Service backend querying Log Analytics over managed identity (`DATA_SOURCE=loganalytics`), so the dashboard can run without the Logic App and blob hop. Blob mode still works; both modes return the same shape.
+- **A Teams alerting Logic App** — adaptive cards for new Critical/High incidents and for SLA breaches as they cross the threshold.
+- **30-day trend queries** — incident volume, MTTR, SLA compliance, open backlog.
+- **Microsoft Defender portal deep links** — incident links resolve to `security.microsoft.com` via `AdditionalData.providerIncidentUrl` instead of the Azure portal Sentinel blade, which is unsupported after 2027-03-31.
 
 ---
 

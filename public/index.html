@@ -538,6 +538,25 @@ function safeUrl(u) {
   } catch (e) { return ''; }
 }
 
+// Prefer the Defender portal deep link (AdditionalData.providerIncidentUrl,
+// surfaced by the API as IncidentLink) and fall back to the Azure portal
+// Sentinel blade. Sentinel in the Azure portal is unsupported after
+// 2027-03-31, so Defender is the forward-looking target.
+//
+// Never derive a Defender URL from IncidentNumber -- the Defender XDR incident
+// ID is a different ID space and would open the WRONG incident.
+function incidentLink(i) {
+  const defender = safeUrl(i.incidentLink || i.IncidentLink);
+  if (defender) {
+    return { url: defender, target: 'defender', label: 'Microsoft Defender portal' };
+  }
+  const azure = safeUrl(i.incidentUrl || i.IncidentUrl);
+  if (azure) {
+    return { url: azure, target: 'azure', label: 'Microsoft Sentinel (Azure portal)' };
+  }
+  return { url: '', target: '', label: '' };
+}
+
 function fmt(dt) {
   if (!dt) return '—';
   return new Date(dt).toLocaleString(LOCALE,{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
@@ -697,12 +716,13 @@ function renderHighFeed() {
     const sev  = i.severity||i.Severity||'';
     const stat = i.status||i.Status||'';
     const num  = i.incidentNumber||i.IncidentNumber||'?';
-    const url  = safeUrl(i.incidentUrl||i.IncidentUrl);
+    const lnk  = incidentLink(i);
+    const url  = lnk.url;
     const numCell = url
-      ? `<a class="inc-link" href="${url}" target="_blank" rel="noopener noreferrer" title="Open incident #${esc(num)} in Microsoft Sentinel">#${esc(num)} ↗</a>`
+      ? `<a class="inc-link" href="${url}" target="_blank" rel="noopener noreferrer" data-target="${lnk.target}" title="Open incident #${esc(num)} in the ${esc(lnk.label)}">#${esc(num)} ↗</a>`
       : `#${esc(num)}`;
     const titleCell = url
-      ? `<a class="inc-link inc-title" href="${url}" target="_blank" rel="noopener noreferrer">${esc(i.title||i.Title||'—')}</a>`
+      ? `<a class="inc-link inc-title" href="${url}" target="_blank" rel="noopener noreferrer" data-target="${lnk.target}" title="Open incident #${esc(num)} in the ${esc(lnk.label)}">${esc(i.title||i.Title||'—')}</a>`
       : esc(i.title||i.Title||'—');
     return `<tr>
       <td style="color:var(--cyan);font-family:var(--mono)">${numCell}</td>
@@ -966,12 +986,13 @@ function renderIncFeed() {
     if(typeof _prod==="string"){try{_prod=JSON.parse(_prod)}catch(e){_prod=[];}}
     const prod = (_prod[0]||"—").replace("Azure Sentinel","Sentinel").replace("Microsoft Defender Advanced Threat Protection","MDE").replace("Office 365 Advanced Threat Protection","MDO").replace("Azure Active Directory Identity Protection","AADIP").replace("Microsoft Cloud App Security","MCAS");
     const inum = i.incidentNumber||i.IncidentNumber||"?";
-    const url  = safeUrl(i.incidentUrl||i.IncidentUrl);
+    const lnk  = incidentLink(i);
+    const url  = lnk.url;
     const numCell = url
-      ? `<a class="inc-link" href="${url}" target="_blank" rel="noopener noreferrer" title="Open incident #${esc(inum)} in Microsoft Sentinel">#${esc(inum)} ↗</a>`
+      ? `<a class="inc-link" href="${url}" target="_blank" rel="noopener noreferrer" data-target="${lnk.target}" title="Open incident #${esc(inum)} in the ${esc(lnk.label)}">#${esc(inum)} ↗</a>`
       : `#${esc(inum)}`;
     const titleCell = url
-      ? `<a class="inc-link inc-title" href="${url}" target="_blank" rel="noopener noreferrer">${esc(i.title||i.Title||"—")}</a>`
+      ? `<a class="inc-link inc-title" href="${url}" target="_blank" rel="noopener noreferrer" data-target="${lnk.target}" title="Open incident #${esc(inum)} in the ${esc(lnk.label)}">${esc(i.title||i.Title||"—")}</a>`
       : esc(i.title||i.Title||"—");
     return `<tr>
       <td style="color:var(--cyan);font-family:var(--mono)">${numCell}</td>

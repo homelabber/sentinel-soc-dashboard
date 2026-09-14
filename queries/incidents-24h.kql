@@ -6,7 +6,15 @@ SecurityIncident
 | where CreatedTime > ago(24h)
 | where ModifiedBy <> 'Microsoft Defender XDR - alert correlation'
 | summarize arg_max(TimeGenerated, *) by IncidentNumber
+| extend _DefenderUrl = tostring(AdditionalData.providerIncidentUrl)
+| extend _DefenderUrl = iff(isnotempty(_DefenderUrl), _DefenderUrl,
+    iff(ProviderName == 'Microsoft XDR' and isnotempty(ProviderIncidentId),
+        strcat('https://security.microsoft.com/incident2/', ProviderIncidentId, '/overview'),
+        ''))
+| extend IncidentLink = iff(isnotempty(_DefenderUrl), _DefenderUrl, IncidentUrl)
+| extend LinkTarget = iff(isnotempty(_DefenderUrl), 'defender', 'azure')
 | project IncidentNumber, Title, Severity, Status, CreatedTime, ClosedTime, LastModifiedTime,
+  IncidentUrl, IncidentLink, LinkTarget,
   Owner=tostring(Owner.userPrincipalName),
   Classification, ClassificationReason,
   Tactics=tostring(AdditionalData.tactics),
