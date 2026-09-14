@@ -14,7 +14,19 @@
     "",
     "403 deliberately has no responseOverride. Rewriting it to /index.html would",
     "send an authenticated-but-unassigned user to a page that itself requires a",
-    "role, producing a second loop."
+    "role, producing a second loop.",
+    "",
+    "globalHeaders is a header-name -> value map, so it must contain ONLY real",
+    "header names. A '//' comment key there is emitted as a header literally",
+    "named '//', which is invalid and makes the whole site return 502. Keep",
+    "commentary in this top-level block instead.",
+    "",
+    "The CSP keeps 'unsafe-inline' in script-src because the dashboard's JS is",
+    "inline in index.html. It is still worth shipping: default-src/connect-src",
+    "confine any future XSS to this origin, and object-src/base-uri/",
+    "frame-ancestors close off the usual escalation paths. Move the inline",
+    "script to its own file and drop 'unsafe-inline' to make this a real",
+    "mitigation rather than a partial one."
   ],
 
   "auth": {
@@ -65,7 +77,6 @@
   },
 
   "globalHeaders": {
-    "//": "script-src keeps 'unsafe-inline' because the dashboard's JS is inline in index.html. It is still worth shipping: default-src/connect-src confine any future XSS to this origin, and object-src/base-uri/frame-ancestors close off common escalation paths. Move the inline script to a file and drop 'unsafe-inline' to make this a real mitigation.",
     "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.rss2json.com; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "SAMEORIGIN",
