@@ -1,0 +1,42 @@
+NOTICE — provenance and licence caveat
+======================================
+
+This repository is a fork of:
+
+    https://github.com/Jeroenvdbroek/sentinel-soc-dashboard
+    Copyright (c) 2026 Jeroen van der Broek
+
+⚠️  At the time this fork was published, the upstream repository did NOT
+    contain a LICENSE file, and GitHub's API reported no licence for it.
+
+The MIT terms in LICENSE are applied here on the basis of the licence the
+upstream author states in their own published documentation:
+
+    "Built for enterprise SOC teams - Microsoft Sentinel - MIT License -
+     Adapt freely"
+        -- docs/index.html, footer
+
+    "Built for a SOC running Microsoft Sentinel. Adapt freely."
+        -- README.md
+
+That is a clear statement of intent. It is not a formal licence grant, and
+without a LICENSE file the legal default for a work is all rights reserved.
+Anyone relying on this for anything beyond personal use should confirm the
+terms with the upstream author directly rather than depending on this file.
+
+
+Scope of the two copyright lines in LICENSE
+-------------------------------------------
+
+    Jeroen van der Broek (original work)
+        The architecture, the Logic App and blob design, the KQL queries,
+        and the dashboard UI this fork started from.
+
+    Michael Blanchard (modifications)
+        Azure Static Web Apps hosting with Entra ID authentication; the App
+        Service direct-query API; the Teams alerting Logic App; the 30-day
+        trend queries; Microsoft Defender portal deep links; the security
+        hardening; and the screenshot / mock-server tooling.
+
+The second line covers those modifications only. It asserts no claim over
+the original work.
