@@ -28,10 +28,25 @@ const CACHE_SEC = parseInt(process.env.CACHE_SECONDS || '60', 10);
 const PORT      = process.env.PORT || 8080;
 const IS_PROD   = (process.env.NODE_ENV || 'production') === 'production';
 
-// Tenant that users must belong to. Optional but strongly recommended: without
-// it any identity the upstream authenticator accepts is allowed through.
+// Tenant pinning. NOTE: Azure Static Web Apps does NOT forward the `claims`
+// array to a backend -- Microsoft documents the backend as receiving "the same
+// user information as a client application, with the exception of the claims
+// array". So a tenant check based on claims can never pass on the SWA path and
+// would reject every request.
+//
+// Tenant restriction for that path is enforced upstream instead, by pinning
+// openIdIssuer to the tenant GUID in staticwebapp.config.json. This setting is
+// therefore only meaningful where claims ARE present (App Service Easy Auth
+// forwarding, or a custom provider), and is skipped when they are absent.
 const EXPECTED_TENANT = (process.env.EXPECTED_TENANT_ID || '').toLowerCase();
-const REQUIRED_ROLE   = process.env.REQUIRED_ROLE || 'authenticated';
+
+// Accepted identity providers. SWA's built-in Entra provider reports "aad";
+// the config key is spelled azureActiveDirectory, so accept both rather than
+// risk locking out every user over a naming difference.
+const ALLOWED_PROVIDERS = (process.env.ALLOWED_IDENTITY_PROVIDERS || 'aad,azureactivedirectory')
+  .toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+
+const REQUIRED_ROLE = process.env.REQUIRED_ROLE || 'authenticated';
 
 // Only these names may be served. Without an allow-list this would become a
 // generic read primitive over the storage account.
@@ -171,7 +186,8 @@ function rejectReason(req) {
   const principal = parsePrincipal(req.get('x-ms-client-principal'));
   if (!principal) return 'missing or malformed principal';
 
-  if ((principal.identityProvider || '').toLowerCase() !== 'aad') {
+  const provider = (principal.identityProvider || '').toLowerCase();
+  if (!ALLOWED_PROVIDERS.includes(provider)) {
     return `unexpected identity provider: ${principal.identityProvider}`;
   }
 
@@ -180,7 +196,11 @@ function rejectReason(req) {
     return `missing required role: ${REQUIRED_ROLE}`;
   }
 
-  if (EXPECTED_TENANT) {
+  // Only enforceable when claims were actually forwarded -- see the comment on
+  // EXPECTED_TENANT. Absent claims means the SWA path, where the tenant is
+  // already pinned at the issuer, so this is not a bypass.
+  const claims = Array.isArray(principal.claims) ? principal.claims : [];
+  if (EXPECTED_TENANT && claims.length) {
     const tid = (claim(principal, 'tid', 'http://schemas.microsoft.com/identity/claims/tenantid') || '').toLowerCase();
     if (tid !== EXPECTED_TENANT) return 'tenant mismatch';
   }
@@ -252,4 +272,8 @@ appSrv.get('/api/data/:name', async (req, res) => {
 
 appSrv.listen(PORT, () => {
   console.log(`SOC dashboard API listening on ${PORT} (mode=${MODE})`);
+  // State the effective policy at boot so a misconfiguration is visible in the
+  // log stream rather than only as mysterious 401s.
+  console.log(`  auth: providers=[${ALLOWED_PROVIDERS.join(',')}] role=${REQUIRED_ROLE} ` +
+              `tenantCheck=${EXPECTED_TENANT ? 'when claims present' : 'off'} prod=${IS_PROD}`);
 });
