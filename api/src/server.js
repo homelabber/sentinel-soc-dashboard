@@ -26,6 +26,12 @@ const CONTAINER = process.env.STORAGE_CONTAINER || 'soc-dashboard';
 const WORKSPACE = process.env.WORKSPACE_ID;
 const CACHE_SEC = parseInt(process.env.CACHE_SECONDS || '60', 10);
 const PORT      = process.env.PORT || 8080;
+const IS_PROD   = (process.env.NODE_ENV || 'production') === 'production';
+
+// Tenant that users must belong to. Optional but strongly recommended: without
+// it any identity the upstream authenticator accepts is allowed through.
+const EXPECTED_TENANT = (process.env.EXPECTED_TENANT_ID || '').toLowerCase();
+const REQUIRED_ROLE   = process.env.REQUIRED_ROLE || 'authenticated';
 
 // Only these names may be served. Without an allow-list this would become a
 // generic read primitive over the storage account.
@@ -87,7 +93,10 @@ async function fromLogAnalytics(name) {
       out[keys[i]] = r.value.tables;
     } else {
       out[keys[i]] = [];
-      failed.push(`${keys[i]}: ${r.reason.message}`);
+      // Section name only. r.reason.message holds raw Log Analytics detail and
+      // this object is returned to the browser on a 200.
+      console.error(`Composite section "${keys[i]}" failed: ${r.reason.message}`);
+      failed.push(keys[i]);
     }
   });
   if (failed.length) out.partialErrors = failed;
@@ -119,31 +128,91 @@ async function fromBlob(name) {
   return JSON.parse(await streamToString(dl.readableStreamBody));
 }
 
-// ── HTTP ─────────────────────────────────────────────────────────────────
+// ── Caller identity ──────────────────────────────────────────────────────
+//
+// Static Web Apps injects x-ms-client-principal after a successful login and
+// strips any client-supplied copy. That guarantee only holds for traffic that
+// actually arrives THROUGH the Static Web App front door.
+//
+// This process is an App Service linked backend, so it also has its own
+// *.azurewebsites.net hostname. Anything that can reach that hostname directly
+// bypasses the Static Web App entirely and can forge this header at will.
+// Presence of the header therefore proves nothing on its own, and this service
+// holds a managed identity with read access to the Sentinel workspace.
+//
+// So: decode and check the principal here, AND keep the network-level controls
+// described in SETUP.md (App Service authentication + access restrictions
+// limiting inbound traffic to the Static Web App). Neither is sufficient alone;
+// this function is defence in depth, not the primary boundary.
+
+function parsePrincipal(header) {
+  if (!header) return null;
+  try {
+    const p = JSON.parse(Buffer.from(header, 'base64').toString('utf8'));
+    return p && typeof p === 'object' ? p : null;
+  } catch {
+    return null;   // malformed base64 or JSON -> treat as unauthenticated
+  }
+}
+
+function claim(principal, ...names) {
+  const claims = Array.isArray(principal.claims) ? principal.claims : [];
+  for (const c of claims) {
+    const key = (c.typ || c.type || '').toLowerCase();
+    if (names.some(n => key === n.toLowerCase() || key.endsWith('/' + n.toLowerCase()))) {
+      return c.val || c.value;
+    }
+  }
+  return undefined;
+}
+
+// Returns null when the caller is acceptable, or a short reason string.
+function rejectReason(req) {
+  const principal = parsePrincipal(req.get('x-ms-client-principal'));
+  if (!principal) return 'missing or malformed principal';
+
+  if ((principal.identityProvider || '').toLowerCase() !== 'aad') {
+    return `unexpected identity provider: ${principal.identityProvider}`;
+  }
+
+  const roles = Array.isArray(principal.userRoles) ? principal.userRoles : [];
+  if (!roles.includes(REQUIRED_ROLE)) {
+    return `missing required role: ${REQUIRED_ROLE}`;
+  }
+
+  if (EXPECTED_TENANT) {
+    const tid = (claim(principal, 'tid', 'http://schemas.microsoft.com/identity/claims/tenantid') || '').toLowerCase();
+    if (tid !== EXPECTED_TENANT) return 'tenant mismatch';
+  }
+
+  return null;
+}
+
 const appSrv = express();
 appSrv.disable('x-powered-by');
 
-// Unauthenticated on purpose so deployment checks can verify configuration.
-// Reports configuration state only - never data.
+// Liveness only. Deliberately reports nothing about configuration: this
+// endpoint is reachable by anything that can reach the host, and mode /
+// workspace / storage state is reconnaissance, not health.
 appSrv.get(['/health', '/api/health'], (_req, res) => {
-  res.json({
-    status: 'ok',
-    mode: MODE,
-    workspaceConfigured: !!WORKSPACE,
-    storageConfigured: !!ACCOUNT,
-    cacheSeconds: CACHE_SEC
-  });
+  res.set('Cache-Control', 'no-store');
+  res.json({ status: 'ok' });
 });
 
 appSrv.get('/api/data/:name', async (req, res) => {
-  // Static Web Apps injects this header after a successful login and strips any
-  // client-supplied copy, so its absence means the caller did not arrive through
-  // an authenticated SWA session.
-  //
-  // REQUIRE_AUTH_HEADER=false disables the check for local development only.
-  const requireAuth = (process.env.REQUIRE_AUTH_HEADER || 'true') !== 'false';
-  if (requireAuth && !req.get('x-ms-client-principal')) {
-    return res.status(401).json({ error: 'Unauthenticated' });
+  // REQUIRE_AUTH_HEADER=false is a local-development escape hatch only. It is
+  // ignored in production so that a stale app setting cannot silently turn this
+  // into an anonymous Sentinel read API.
+  const authDisabled = (process.env.REQUIRE_AUTH_HEADER || 'true') === 'false';
+  if (authDisabled && IS_PROD) {
+    console.warn('REQUIRE_AUTH_HEADER=false ignored because NODE_ENV is production');
+  }
+  if (!authDisabled || IS_PROD) {
+    const reason = rejectReason(req);
+    if (reason) {
+      console.warn(`Rejected /api/data/${req.params.name}: ${reason}`);
+      return res.status(401).json({ error: 'Unauthenticated' });
+    }
   }
 
   const name = req.params.name;
@@ -174,7 +243,10 @@ appSrv.get('/api/data/:name', async (req, res) => {
       return res.status(404).json({ error: `${name} has not been generated yet` });
     }
     console.error(`Failed serving ${name} (${MODE}): ${err.message}`);
-    return res.status(502).json({ error: 'Upstream data error', detail: err.message });
+    // err.message carries up to 400 characters of the raw Log Analytics error
+    // body (workspace IDs, table names, KQL diagnostics, managed-identity
+    // authorization failures). Log it, never return it.
+    return res.status(502).json({ error: 'Upstream data error' });
   }
 });
 
